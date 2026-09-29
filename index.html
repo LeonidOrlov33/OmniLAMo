@@ -965,6 +965,23 @@
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], VOICE_I18N[code] || VOICE_I18N.en));
 
+        // Подписи кнопки микрофона: состояние записи видно и по иконке 🎤/🛑,
+        // и в подсказке при наведении. Отдельным блоком по той же причине,
+        // что SITE_I18N и VOICE_I18N — правки в десяти секциях выше разъехались бы.
+        const MIC_I18N = {
+            ru: { voiceIdle: "Голосовой ввод", voiceListening: "Идёт запись — нажми, чтобы остановить" },
+            en: { voiceIdle: "Voice input", voiceListening: "Listening — tap to stop" },
+            zh: { voiceIdle: "语音输入", voiceListening: "正在录音 — 点击停止" },
+            es: { voiceIdle: "Entrada de voz", voiceListening: "Grabando — toca para parar" },
+            hi: { voiceIdle: "आवाज़ से इनपुट", voiceListening: "रिकॉर्ड हो रहा है — रोकने के लिए दबाएँ" },
+            ar: { voiceIdle: "الإدخال الصوتي", voiceListening: "جارٍ التسجيل — اضغط للإيقاف" },
+            fr: { voiceIdle: "Saisie vocale", voiceListening: "Enregistrement — appuie pour arrêter" },
+            de: { voiceIdle: "Spracheingabe", voiceListening: "Aufnahme läuft — zum Stoppen tippen" },
+            ja: { voiceIdle: "音声入力", voiceListening: "録音中 — タップで停止" },
+            pt: { voiceIdle: "Entrada de voz", voiceListening: "Gravando — toque para parar" }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], MIC_I18N[code] || MIC_I18N.en));
+
         let LANG = localStorage.getItem("lenya_lang") || "ru";
 
         function t(key) {
@@ -1248,10 +1265,20 @@
             }, ms);
         }
 
+        // Единственное место, где меняется вид кнопки микрофона. Сброс живёт
+        // здесь, а не рядом с каждым сообщением об ошибке: состояние «слушаю»
+        // должны снимать все пути выхода — и onend, и сторож, и onerror.
+        function micPaint(recording) {
+            const btn = document.getElementById("micBtn");
+            if (!btn) return;
+            btn.classList.toggle("rec", recording);
+            btn.textContent = recording ? "🛑" : "🎤";
+            btn.title = t(recording ? "voiceListening" : "voiceIdle");
+        }
+
         function micClear() {
             micUnwatch();
-            const btn = document.getElementById("micBtn");
-            if (btn) btn.classList.remove("rec");
+            micPaint(false);
             micActive = false;
         }
 
@@ -1291,7 +1318,7 @@
             // в onresult, abort() выбросил бы его.
             if (micActive) {
                 micActive = false;
-                btn.classList.remove("rec");
+                micPaint(false);
                 try {
                     micRecognition.stop();
                     // Ответ должен прийти за пару секунд. Если и тут тишина —
@@ -1358,7 +1385,7 @@
             };
 
             micActive = true;
-            btn.classList.add("rec");
+            micPaint(true);
             try {
                 recognition.start();
                 // Chrome сам сообщает о тишине в микрофон (no-speech) секунд
@@ -1367,7 +1394,7 @@
                 micWatch(MIC_START_TIMEOUT, micHang);
             } catch (e) {
                 micActive = false;
-                btn.classList.remove("rec");
+                micPaint(false);
                 micDone = true;
                 addMsg(t("voiceError") + " (" + e.name + ")", "bot");
             }
