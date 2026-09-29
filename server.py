@@ -226,7 +226,7 @@ app.add_middleware(
 def home():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/index.html")
-"
+
 
 
 # Отдельный пул потоков только для проверки живости. Синхронные обработчики
