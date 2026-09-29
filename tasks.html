@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Мои задания — OmniLAMo</title>
+    <style>
+        :root {
+            --bg: #0a0a1a;
+            --neon-blue: #00d4ff;
+            --neon-purple: #bf00ff;
+            --neon-pink: #ff00e5;
+            --neon-green: #00ff88;
+            --neon-red: #ff0044;
+            --glass: rgba(15, 15, 40, 0.85);
+            --glass-border: rgba(0, 212, 255, 0.3);
+            --text: #e0e0ff;
+            --muted: #8899cc;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI','Arial',sans-serif; -webkit-tap-highlight-color:transparent; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content:'';
+            position:absolute;
+            top:0; left:0;
+            width:100%; height:100%;
+            background-image:
+                linear-gradient(rgba(0,212,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(191,0,255,0.05) 1px, transparent 1px);
+            background-size:40px 40px;
+            animation:gridMove 3s linear infinite;
+            pointer-events:none;
+        }
+        @keyframes gridMove {
+            0% { transform:translate(0,0); }
+            100% { transform:translate(40px,40px); }
+        }
+
+        body::after {
+            content:'';
+            position:absolute;
+            top:50%; left:50%;
+            transform:translate(-50%,-50%);
+            width:600px; height:600px;
+            background:radial-gradient(circle, rgba(191,0,255,0.15), transparent 70%);
+            pointer-events:none;
+            animation:glowPulse 3s ease-in-out infinite;
+        }
+        @keyframes glowPulse {
+            0%,100% { opacity:0.5; }
+            50% { opacity:1; }
+        }
+
+        .app {
+            width:100%;
+            max-width:450px;
+            height:95vh;
+            background:var(--glass);
+            display:flex;
+            flex-direction:column;
+            position:relative;
+            border-radius:30px;
+            border:1px solid var(--glass-border);
+            box-shadow:
+                0 0 40px rgba(0,212,255,0.2),
+                0 0 80px rgba(191,0,255,0.15),
+                inset 0 0 60px rgba(0,0,0,0.3);
+            backdrop-filter:blur(10px);
+            overflow:hidden;
+        }
+
+        .header {
+            padding:18px 20px;
+            display:flex;
+            align-items:center;
+            gap:12px;
+            border-bottom:1px solid var(--glass-border);
+            z-index:10;
+        }
+        .back-btn {
+            background:rgba(0,0,0,0.4);
+            border:1px solid var(--glass-border);
+            color:var(--neon-blue);
+            border-radius:50%;
+            width:42px; height:42px;
+            font-size:20px;
+            cursor:pointer;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            transition:all 0.3s;
+            text-decoration:none;
+        }
+        .back-btn:hover {
+            background:rgba(0,212,255,0.1);
+            box-shadow:0 0 20px rgba(0,212,255,0.3);
+        }
+        .header h1 { font-size:20px; font-weight:700; flex:1; }
+        .count-badge {
+            background:linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            border-radius:20px;
+            padding:4px 14px;
+            font-size:13px;
+            font-weight:700;
+            color:white;
+        }
+
+        .content {
+            flex:1;
+            overflow-y:auto;
+            padding:16px;
+            display:flex;
+            flex-direction:column;
+            gap:12px;
+        }
+
+        /* КНОПКА ДОБАВИТЬ */
+        .add-bar { padding:14px 16px; border-top:1px solid var(--glass-border); }
+        .add-open-btn {
+            width:100%;
+            background:linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            color:white;
+            border:none;
+            border-radius:25px;
+            padding:15px;
+            font-size:15px;
+            font-weight:700;
+            cursor:pointer;
+            box-shadow:0 0 20px rgba(0,212,255,0.4);
+            transition:all 0.3s;
+        }
+        .add-open-btn:hover { transform:translateY(-2px); box-shadow:0 0 35px rgba(191,0,255,0.5); }
+        .add-open-btn:active { transform:scale(0.98); }
+
+        /* МОДАЛКА НОВОГО ЗАДАНИЯ */
+        .modal-overlay {
+            position:absolute;
+            top:0; left:0;
+            width:100%; height:100%;
+            background:rgba(0,0,0,0.7);
+            backdrop-filter:blur(4px);
+            display:none;
+            align-items:flex-end;
+            z-index:40;
+        }
+        .modal-overlay.active { display:flex; }
+        .modal {
+            width:100%;
+            max-height:92%;
+            overflow-y:auto;
+            background:rgba(12,12,32,0.98);
+            border-top:1px solid var(--glass-border);
+            border-radius:28px 28px 0 0;
+            padding:22px 18px;
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+            animation:sheetIn 0.3s ease;
+            box-shadow:0 -10px 50px rgba(0,212,255,0.18);
+        }
+        @keyframes sheetIn {
+            from { transform:translateY(40px); opacity:0; }
+            to { transform:translateY(0); opacity:1; }
+        }
+        .modal h3 { font-size:18px; font-weight:700; margin-bottom:4px; }
+        .modal label {
+            font-size:12px;
+            color:var(--muted);
+            margin-top:6px;
+            text-transform:uppercase;
+            letter-spacing:0.5px;
+        }
+        .modal textarea, .modal input[type=date] {
+            background:rgba(0,0,0,0.5);
+            border:1px solid var(--glass-border);
+            border-radius:16px;
+            padding:12px 15px;
+            color:var(--text);
+            font-size:15px;
+            outline:none;
+            font-family:inherit;
+            transition:all 0.3s;
+        }
+        .modal textarea { resize:none; }
+        .modal textarea:focus, .modal input:focus {
+            border-color:var(--neon-blue);
+            box-shadow:0 0 20px rgba(0,212,255,0.25);
+        }
+        .seg { display:flex; gap:8px; }
+        .seg-btn {
+            flex:1;
+            background:rgba(0,0,0,0.4);
+            border:1px solid var(--glass-border);
+            border-radius:16px;
+            padding:11px 4px;
+            color:var(--muted);
+            font-size:13px;
+            font-weight:600;
+            cursor:pointer;
+            transition:all 0.3s;
+        }
+        .seg-btn.active {
+            background:linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            color:white;
+            border-color:transparent;
+            box-shadow:0 0 18px rgba(0,212,255,0.35);
+        }
+        .time-row { display:flex; gap:8px; align-items:center; }
+        .time-sep { font-size:18px; font-weight:700; color:var(--neon-blue); }
+        .time-row select, .date-row input {
+            flex:1;
+            min-width:0;
+            background:rgba(0,0,0,0.5);
+            border:1px solid var(--glass-border);
+            border-radius:16px;
+            padding:12px 8px;
+            color:var(--text);
+            font-size:15px;
+            outline:none;
+            text-align:center;
+            cursor:pointer;
+            appearance:none;
+        }
+        .time-row select:focus, .date-row input:focus { border-color:var(--neon-blue); }
+        .sched-part.hidden { display:none; }
+        .date-row { display:flex; gap:8px; }
+        .preview {
+            font-size:13px;
+            color:var(--neon-green);
+            background:rgba(0,255,136,0.08);
+            border:1px solid rgba(0,255,136,0.25);
+            border-radius:14px;
+            padding:10px 14px;
+            margin-top:4px;
+        }
+        .preview:empty { display:none; }
+        .modal-actions { display:flex; gap:10px; margin-top:10px; }
+        .modal-btn {
+            flex:1;
+            border-radius:22px;
+            padding:14px;
+            font-size:15px;
+            font-weight:700;
+            cursor:pointer;
+            border:none;
+            transition:all 0.3s;
+        }
+        .modal-btn.cancel {
+            background:rgba(0,0,0,0.5);
+            border:1px solid var(--glass-border);
+            color:var(--muted);
+        }
+        .modal-btn.save {
+            background:linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            color:white;
+            box-shadow:0 0 22px rgba(0,212,255,0.4);
+        }
+        .modal-btn.save:hover { box-shadow:0 0 35px rgba(191,0,255,0.5); }
+        .modal-btn:active { transform:scale(0.97); }
+
+        .task-card {
+            background:rgba(0,0,0,0.4);
+            border:1px solid rgba(0,212,255,0.15);
+            border-radius:18px;
+            padding:14px 16px;
+            display:flex;
+            align-items:flex-start;
+            gap:12px;
+            transition:all 0.3s;
+            animation:taskIn 0.3s ease;
+        }
+        @keyframes taskIn {
+            from { opacity:0; transform:translateY(10px); }
+            to { opacity:1; transform:translateY(0); }
+        }
+        .task-card:hover {
+            border-color:var(--neon-blue);
+            box-shadow:0 0 20px rgba(0,212,255,0.15);
+        }
+        .task-card.done {
+            opacity:0.55;
+            border-color:rgba(0,255,136,0.3);
+        }
+        .task-check {
+            width:26px; height:26px;
+            border-radius:50%;
+            border:2px solid var(--neon-blue);
+            background:transparent;
+            cursor:pointer;
+            flex-shrink:0;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:transparent;
+            font-size:14px;
+            font-weight:900;
+            transition:all 0.3s;
+            margin-top:2px;
+        }
+        .task-check:hover { box-shadow:0 0 15px rgba(0,212,255,0.4); }
+        .task-card.done .task-check {
+            background:var(--neon-green);
+            border-color:var(--neon-green);
+            color:#06301a;
+        }
+        .task-body { flex:1; min-width:0; }
+        .task-text {
+            font-size:15px;
+            line-height:1.4;
+            word-wrap:break-word;
+        }
+        .task-card.done .task-text { text-decoration:line-through; }
+        .task-time {
+            font-size:11px;
+            color:var(--muted);
+            margin-top:5px;
+            display:block;
+        }
+        .task-del {
+            background:none;
+            border:none;
+            color:var(--muted);
+            font-size:18px;
+            cursor:pointer;
+            flex-shrink:0;
+            transition:all 0.3s;
+            padding:4px;
+        }
+        .task-del:hover { color:var(--neon-red); transform:scale(1.15); }
+
+        .empty {
+            text-align:center;
+            color:var(--muted);
+            padding:60px 20px;
+            font-size:15px;
+            line-height:1.6;
+        }
+        .empty .icon { font-size:50px; display:block; margin-bottom:12px; }
+
+        .toast {
+            position:absolute;
+            bottom:90px;
+            left:50%;
+            transform:translateX(-50%);
+            background:rgba(0,0,0,0.85);
+            border:1px solid var(--glass-border);
+            border-radius:20px;
+            padding:10px 20px;
+            font-size:14px;
+            z-index:50;
+            animation:msgIn 0.3s ease;
+            white-space:nowrap;
+        }
+        @keyframes msgIn {
+            from { opacity:0; transform:translate(-50%, 15px); }
+            to { opacity:1; transform:translate(-50%, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <a href="index.html" class="back-btn">←</a>
+            <h1 data-i18n="title">📋 Мои задания</h1>
+            <span class="count-badge" id="countBadge">0</span>
+        </div>
+
+        <div class="content" id="taskList">
+            <div class="empty"><span class="icon">🗒️</span><span data-i18n="loading">Загрузка заданий...</span></div>
+        </div>
+
+        <div class="add-bar">
+            <button class="add-open-btn" onclick="openTaskModal()" data-i18n="addTask">＋ Добавить задание</button>
+        </div>
+
+        <!-- МОДАЛКА НОВОГО ЗАДАНИЯ -->
+        <div class="modal-overlay" id="taskModalOverlay">
+            <div class="modal">
+                <h3 data-i18n="newTask">➕ Новое задание</h3>
+
+                <label data-i18n="taskLabel">Само задание</label>
+                <textarea id="taskText" rows="3" placeholder="Например: сделать домашку по математике" data-i18n-ph="taskPlaceholder"></textarea>
+
+                <label data-i18n="whenLabel">Когда выполнить?</label>
+                <div class="seg">
+                    <button class="seg-btn" data-mode="daily" onclick="setMode('daily')" data-i18n="modeDaily">📆 Ежедневно</button>
+                    <button class="seg-btn" data-mode="weekly" onclick="setMode('weekly')" data-i18n="modeWeekly">🗓️ Еженедельно</button>
+                    <button class="seg-btn active" data-mode="once" onclick="setMode('once')" data-i18n="modeOnce">1️⃣ Один раз</button>
+                </div>
+
+                <div class="sched-part" id="weekPart">
+                    <label data-i18n="weekDayLabel">День недели</label>
+                    <div class="time-row">
+                        <select id="weekDay">
+                            <option value="1" data-i18n="wd1">Понедельник</option>
+                            <option value="2" data-i18n="wd2">Вторник</option>
+                            <option value="3" data-i18n="wd3">Среда</option>
+                            <option value="4" data-i18n="wd4">Четверг</option>
+                            <option value="5" data-i18n="wd5">Пятница</option>
+                            <option value="6" data-i18n="wd6">Суббота</option>
+                            <option value="0" data-i18n="wd0">Воскресенье</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="sched-part" id="datePart">
+                    <label data-i18n="dateLabel">Дата</label>
+                    <div class="date-row">
+                        <input type="number" id="dayInput" min="1" max="31" placeholder="ДД" data-i18n-ph="phDay">
+                        <input type="number" id="monthInput" min="1" max="12" placeholder="ММ" data-i18n-ph="phMonth">
+                        <input type="number" id="yearInput" min="2025" max="2100" placeholder="ГГГГ" data-i18n-ph="phYear">
+                    </div>
+                </div>
+
+                <div class="sched-part" id="timePart">
+                    <label data-i18n="timeLabel">Время</label>
+                    <div class="time-row">
+                        <select id="hourInput"></select>
+                        <span class="time-sep">:</span>
+                        <select id="minuteInput"></select>
+                        <span class="time-sep">:</span>
+                        <select id="secondInput"></select>
+                    </div>
+                </div>
+
+                <div class="preview" id="schedulePreview"></div>
+
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" onclick="closeTaskModal()" data-i18n="cancel">Отмена</button>
+                    <button class="modal-btn save" onclick="saveTask()" data-i18n="save">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Адрес сервера: если страница открыта с него же (локально или на Render),
+        // берём её origin — иначе после деплоя страница стучалась бы в localhost.
+        const SERVER = (function () {
+            if (location.protocol === "file:") return "http://127.0.0.1:8000";
+            const localNames = ["localhost", "127.0.0.1", "[::1]"];
+            if (localNames.indexOf(location.hostname) !== -1 && location.port !== "8000") {
+                return "http://127.0.0.1:8000";
+            }
+            return location.origin;
+        })();
+        const apiKey = localStorage.getItem("lenya_api_key") || "";
+
+        if (!apiKey) {
+            location.href = "index.html";
+        }
+
+        // ================= ЯЗЫКИ (i18n) =================
+        const I18N = {
+            ru: {
+                title: "📋 Мои задания", loading: "Загрузка заданий...", addTask: "＋ Добавить задание",
+                newTask: "➕ Новое задание", taskLabel: "Само задание",
+                taskPlaceholder: "Например: сделать домашку по математике",
+                whenLabel: "Когда выполнить?",
+                modeDaily: "📆 Ежедневно", modeWeekly: "🗓️ Еженедельно", modeOnce: "1️⃣ Один раз",
+                weekDayLabel: "День недели", dateLabel: "Дата", timeLabel: "Время",
+                wd0: "Воскресенье", wd1: "Понедельник", wd2: "Вторник", wd3: "Среда",
+                wd4: "Четверг", wd5: "Пятница", wd6: "Суббота",
+                phDay: "ДД", phMonth: "ММ", phYear: "ГГГГ",
+                cancel: "Отмена", save: "Сохранить",
+                empty: "🎉 Нет активных заданий.<br>Добавь новое ниже!",
+                error: "Ошибка", serverDown: "Сервер недоступен",
+                created: "Создано", doneLabel: "Выполнено", deleted: "🗑️ Удалено",
+                unmark: "Снятие отметки недоступно", writeTask: "❌ Напиши задание",
+                added: "✅ Задание добавлено", dayErr: "Укажи день (1–31)",
+                monthErr: "Укажи месяц (1–12)", yearErr: "Укажи год (2025–2100)",
+                dailyIn: "Ежедневно в", weeklyIn: "Еженедельно", at: "в"
+            },
+            en: {
+                title: "📋 My tasks", loading: "Loading tasks...", addTask: "＋ Add task",
+                newTask: "➕ New task", taskLabel: "Task",
+                taskPlaceholder: "For example: do math homework",
+                whenLabel: "When to do it?",
+                modeDaily: "📆 Daily", modeWeekly: "🗓️ Weekly", modeOnce: "1️⃣ Once",
+                weekDayLabel: "Day of week", dateLabel: "Date", timeLabel: "Time",
+                wd0: "Sunday", wd1: "Monday", wd2: "Tuesday", wd3: "Wednesday",
+                wd4: "Thursday", wd5: "Friday", wd6: "Saturday",
+                phDay: "DD", phMonth: "MM", phYear: "YYYY",
+                cancel: "Cancel", save: "Save",
+                empty: "🎉 No active tasks.<br>Add a new one below!",
+                error: "Error", serverDown: "Server unavailable",
+                created: "Created", doneLabel: "Done", deleted: "🗑️ Deleted",
+                unmark: "Unmarking is not available", writeTask: "❌ Write the task",
+                added: "✅ Task added", dayErr: "Enter day (1–31)",
+                monthErr: "Enter month (1–12)", yearErr: "Enter year (2025–2100)",
+                dailyIn: "Daily at", weeklyIn: "Weekly", at: "at"
+            },
+            zh: {
+                title: "📋 我的任务", loading: "正在加载任务...", addTask: "＋ 添加任务",
+                newTask: "➕ 新任务", taskLabel: "任务内容",
+                taskPlaceholder: "例如：做数学作业",
+                whenLabel: "何时执行？",
+                modeDaily: "📆 每天", modeWeekly: "🗓️ 每周", modeOnce: "1️⃣ 一次",
+                weekDayLabel: "星期", dateLabel: "日期", timeLabel: "时间",
+                wd0: "星期日", wd1: "星期一", wd2: "星期二", wd3: "星期三",
+                wd4: "星期四", wd5: "星期五", wd6: "星期六",
+                phDay: "日", phMonth: "月", phYear: "年",
+                cancel: "取消", save: "保存",
+                empty: "🎉 没有活动任务。<br>请在下面添加！",
+                error: "错误", serverDown: "服务器不可用",
+                created: "创建于", doneLabel: "已完成", deleted: "🗑️ 已删除",
+                unmark: "无法取消标记", writeTask: "❌ 请写下任务",
+                added: "✅ 任务已添加", dayErr: "请输入日期 (1–31)",
+                monthErr: "请输入月份 (1–12)", yearErr: "请输入年份 (2025–2100)",
+                dailyIn: "每天", weeklyIn: "每周", at: "在"
+            },
+            es: {
+                title: "📋 Mis tareas", loading: "Cargando tareas...", addTask: "＋ Añadir tarea",
+                newTask: "➕ Nueva tarea", taskLabel: "Tarea",
+                taskPlaceholder: "Por ejemplo: hacer los deberes de mates",
+                whenLabel: "¿Cuándo hacerla?",
+                modeDaily: "📆 Diario", modeWeekly: "🗓️ Semanal", modeOnce: "1️⃣ Una vez",
+                weekDayLabel: "Día de la semana", dateLabel: "Fecha", timeLabel: "Hora",
+                wd0: "Domingo", wd1: "Lunes", wd2: "Martes", wd3: "Miércoles",
+                wd4: "Jueves", wd5: "Viernes", wd6: "Sábado",
+                phDay: "DD", phMonth: "MM", phYear: "AAAA",
+                cancel: "Cancelar", save: "Guardar",
+                empty: "🎉 No tienes tareas activas.<br>¡Añade una abajo!",
+                error: "Error", serverDown: "Servidor no disponible",
+                created: "Creado", doneLabel: "Hecho", deleted: "🗑️ Eliminado",
+                unmark: "No se puede quitar la marca", writeTask: "❌ Escribe la tarea",
+                added: "✅ Tarea añadida", dayErr: "Indica el día (1–31)",
+                monthErr: "Indica el mes (1–12)", yearErr: "Indica el año (2025–2100)",
+                dailyIn: "Diario a las", weeklyIn: "Semanal", at: "a las"
+            },
+            hi: {
+                title: "📋 मेरे कार्य", loading: "कार्य लोड हो रहे हैं...", addTask: "＋ कार्य जोड़ें",
+                newTask: "➕ नया कार्य", taskLabel: "कार्य",
+                taskPlaceholder: "उदाहरण: गणित का होमवर्क करें",
+                whenLabel: "कब करना है?",
+                modeDaily: "📆 प्रतिदिन", modeWeekly: "🗓️ साप्ताहिक", modeOnce: "1️⃣ एक बार",
+                weekDayLabel: "सप्ताह का दिन", dateLabel: "तारीख़", timeLabel: "समय",
+                wd0: "रविवार", wd1: "सोमवार", wd2: "मंगलवार", wd3: "बुधवार",
+                wd4: "गुरुवार", wd5: "शुक्रवार", wd6: "शनिवार",
+                phDay: "दिन", phMonth: "माह", phYear: "वर्ष",
+                cancel: "रद्द करें", save: "सहेजें",
+                empty: "🎉 कोई सक्रिय कार्य नहीं।<br>नीचे नया जोड़ें!",
+                error: "त्रुटि", serverDown: "सर्वर उपलब्ध नहीं",
+                created: "बनाया", doneLabel: "पूरा हुआ", deleted: "🗑️ हटाया गया",
+                unmark: "मार्क हटाना उपलब्ध नहीं", writeTask: "❌ कार्य लिखें",
+                added: "✅ कार्य जोड़ा गया", dayErr: "दिन बताएं (1–31)",
+                monthErr: "माह बताएं (1–12)", yearErr: "वर्ष बताएं (2025–2100)",
+                dailyIn: "प्रतिदिन", weeklyIn: "साप्ताहिक", at: "समय"
+            },
+            ar: {
+                title: "📋 مهامي", loading: "جارٍ تحميل المهام...", addTask: "＋ إضافة مهمة",
+                newTask: "➕ مهمة جديدة", taskLabel: "المهمة",
+                taskPlaceholder: "مثال: حل واجب الرياضيات",
+                whenLabel: "متى تنفذها؟",
+                modeDaily: "📆 يوميًا", modeWeekly: "🗓️ أسبوعيًا", modeOnce: "1️⃣ مرة واحدة",
+                weekDayLabel: "يوم الأسبوع", dateLabel: "التاريخ", timeLabel: "الوقت",
+                wd0: "الأحد", wd1: "الاثنين", wd2: "الثلاثاء", wd3: "الأربعاء",
+                wd4: "الخميس", wd5: "الجمعة", wd6: "السبت",
+                phDay: "يوم", phMonth: "شهر", phYear: "سنة",
+                cancel: "إلغاء", save: "حفظ",
+                empty: "🎉 لا توجد مهام نشطة.<br>أضف مهمة جديدة بالأسفل!",
+                error: "خطأ", serverDown: "الخادم غير متاح",
+                created: "أُنشئت", doneLabel: "تم", deleted: "🗑️ تم الحذف",
+                unmark: "إلغاء التعليم غير متاح", writeTask: "❌ اكتب المهمة",
+                added: "✅ تمت إضافة المهمة", dayErr: "حدد اليوم (1–31)",
+                monthErr: "حدد الشهر (1–12)", yearErr: "حدد السنة (2025–2100)",
+                dailyIn: "يوميًا في", weeklyIn: "أسبوعيًا", at: "في"
+            },
+            fr: {
+                title: "📋 Mes tâches", loading: "Chargement des tâches...", addTask: "＋ Ajouter une tâche",
+                newTask: "➕ Nouvelle tâche", taskLabel: "La tâche",
+                taskPlaceholder: "Par exemple : faire les devoirs de maths",
+                whenLabel: "Quand l'accomplir ?",
+                modeDaily: "📆 Tous les jours", modeWeekly: "🗓️ Chaque semaine", modeOnce: "1️⃣ Une fois",
+                weekDayLabel: "Jour de la semaine", dateLabel: "Date", timeLabel: "Heure",
+                wd0: "Dimanche", wd1: "Lundi", wd2: "Mardi", wd3: "Mercredi",
+                wd4: "Jeudi", wd5: "Vendredi", wd6: "Samedi",
+                phDay: "JJ", phMonth: "MM", phYear: "AAAA",
+                cancel: "Annuler", save: "Enregistrer",
+                empty: "🎉 Aucune tâche active.<br>Ajoutes-en une ci-dessous !",
+                error: "Erreur", serverDown: "Serveur indisponible",
+                created: "Créé", doneLabel: "Terminé", deleted: "🗑️ Supprimé",
+                unmark: "Décocher n'est pas disponible", writeTask: "❌ Écris la tâche",
+                added: "✅ Tâche ajoutée", dayErr: "Indique le jour (1–31)",
+                monthErr: "Indique le mois (1–12)", yearErr: "Indique l'année (2025–2100)",
+                dailyIn: "Tous les jours à", weeklyIn: "Chaque semaine", at: "à"
+            },
+            de: {
+                title: "📋 Meine Aufgaben", loading: "Aufgaben werden geladen...", addTask: "＋ Aufgabe hinzufügen",
+                newTask: "➕ Neue Aufgabe", taskLabel: "Die Aufgabe",
+                taskPlaceholder: "Zum Beispiel: Mathe-Hausaufgaben machen",
+                whenLabel: "Wann erledigen?",
+                modeDaily: "📆 Täglich", modeWeekly: "🗓️ Wöchentlich", modeOnce: "1️⃣ Einmal",
+                weekDayLabel: "Wochentag", dateLabel: "Datum", timeLabel: "Uhrzeit",
+                wd0: "Sonntag", wd1: "Montag", wd2: "Dienstag", wd3: "Mittwoch",
+                wd4: "Donnerstag", wd5: "Freitag", wd6: "Samstag",
+                phDay: "TT", phMonth: "MM", phYear: "JJJJ",
+                cancel: "Abbrechen", save: "Speichern",
+                empty: "🎉 Keine aktiven Aufgaben.<br>Füge unten eine hinzu!",
+                error: "Fehler", serverDown: "Server nicht erreichbar",
+                created: "Erstellt", doneLabel: "Erledigt", deleted: "🗑️ Gelöscht",
+                unmark: "Markierung entfernen nicht möglich", writeTask: "❌ Schreibe die Aufgabe",
+                added: "✅ Aufgabe hinzugefügt", dayErr: "Tag angeben (1–31)",
+                monthErr: "Monat angeben (1–12)", yearErr: "Jahr angeben (2025–2100)",
+                dailyIn: "Täglich um", weeklyIn: "Wöchentlich", at: "um"
+            },
+            ja: {
+                title: "📋 マイタスク", loading: "タスクを読み込み中...", addTask: "＋ タスクを追加",
+                newTask: "➕ 新しいタスク", taskLabel: "タスク",
+                taskPlaceholder: "例：数学の宿題をする",
+                whenLabel: "いつ実行しますか？",
+                modeDaily: "📆 毎日", modeWeekly: "🗓️ 毎週", modeOnce: "1️⃣ 1回",
+                weekDayLabel: "曜日", dateLabel: "日付", timeLabel: "時刻",
+                wd0: "日曜日", wd1: "月曜日", wd2: "火曜日", wd3: "水曜日",
+                wd4: "木曜日", wd5: "金曜日", wd6: "土曜日",
+                phDay: "日", phMonth: "月", phYear: "年",
+                cancel: "キャンセル", save: "保存",
+                empty: "🎉 有効なタスクはありません。<br>下から追加してください！",
+                error: "エラー", serverDown: "サーバーに接続できません",
+                created: "作成", doneLabel: "完了", deleted: "🗑️ 削除しました",
+                unmark: "チェック解除はできません", writeTask: "❌ タスクを入力してください",
+                added: "✅ タスクを追加しました", dayErr: "日を入力 (1–31)",
+                monthErr: "月を入力 (1–12)", yearErr: "年を入力 (2025–2100)",
+                dailyIn: "毎日", weeklyIn: "毎週", at: ""
+            },
+            pt: {
+                title: "📋 Minhas tarefas", loading: "Carregando tarefas...", addTask: "＋ Adicionar tarefa",
+                newTask: "➕ Nova tarefa", taskLabel: "A tarefa",
+                taskPlaceholder: "Por exemplo: fazer a lição de matemática",
+                whenLabel: "Quando fazer?",
+                modeDaily: "📆 Diariamente", modeWeekly: "🗓️ Semanalmente", modeOnce: "1️⃣ Uma vez",
+                weekDayLabel: "Dia da semana", dateLabel: "Data", timeLabel: "Hora",
+                wd0: "Domingo", wd1: "Segunda", wd2: "Terça", wd3: "Quarta",
+                wd4: "Quinta", wd5: "Sexta", wd6: "Sábado",
+                phDay: "DD", phMonth: "MM", phYear: "AAAA",
+                cancel: "Cancelar", save: "Salvar",
+                empty: "🎉 Nenhuma tarefa ativa.<br>Adicione uma abaixo!",
+                error: "Erro", serverDown: "Servidor indisponível",
+                created: "Criado", doneLabel: "Concluído", deleted: "🗑️ Excluído",
+                unmark: "Desmarcar não está disponível", writeTask: "❌ Escreva a tarefa",
+                added: "✅ Tarefa adicionada", dayErr: "Informe o dia (1–31)",
+                monthErr: "Informe o mês (1–12)", yearErr: "Informe o ano (2025–2100)",
+                dailyIn: "Diariamente às", weeklyIn: "Semanalmente", at: "às"
+            }
+        };
+
+        let LANG = localStorage.getItem("lenya_lang") || "ru";
+        if (!I18N[LANG]) LANG = "ru";
+
+        function t(key) {
+            const dict = I18N[LANG] || I18N.ru;
+            return dict[key] !== undefined ? dict[key] : I18N.ru[key];
+        }
+
+        function applyLang() {
+            document.documentElement.lang = LANG;
+            document.documentElement.dir = LANG === "ar" ? "rtl" : "ltr";
+            document.title = t("title") + " — OmniLAMo";
+            document.querySelectorAll("[data-i18n]").forEach(el => {
+                const val = t(el.dataset.i18n);
+                if (typeof val === "string") el.innerHTML = val;
+            });
+            document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+                const val = t(el.dataset.i18nPh);
+                if (typeof val === "string") el.placeholder = val;
+            });
+        }
+
+        function toast(msg) {
+            const old = document.querySelector(".toast");
+            if (old) old.remove();
+            const el = document.createElement("div");
+            el.className = "toast";
+            el.textContent = msg;
+            document.querySelector(".app").appendChild(el);
+            setTimeout(() => el.remove(), 2000);
+        }
+
+        async function loadTasks() {
+            try {
+                const res = await fetch(`${SERVER}/get_tasks?api_key=${apiKey}`);
+                const data = await res.json();
+                const list = document.getElementById("taskList");
+                if (!data.success) {
+                    list.innerHTML = `<div class="empty"><span class="icon">⚠️</span>${data.error || t("error")}</div>`;
+                    updateCount([]);
+                    return;
+                }
+                renderTasks(data.tasks || []);
+                updateCount(data.tasks || []);
+            } catch (e) {
+                document.getElementById("taskList").innerHTML =
+                    `<div class="empty"><span class="icon">🔌</span>${t("serverDown")}</div>`;
+                updateCount([]);
+            }
+        }
+
+        function updateCount(tasks) {
+            const active = tasks.filter(t => t.status === "active");
+            document.getElementById("countBadge").textContent = active.length;
+        }
+
+        function formatDate(iso) {
+            if (!iso) return "";
+            try {
+                const d = new Date(iso);
+                return d.toLocaleString(LANG === "zh" ? "zh-CN" : LANG === "ja" ? "ja-JP" : LANG === "ar" ? "ar-SA" : LANG === "hi" ? "hi-IN" : LANG, {
+                    day: "2-digit", month: "2-digit",
+                    hour: "2-digit", minute: "2-digit"
+                });
+            } catch (e) { return ""; }
+        }
+
+        function escapeHtml(s) {
+            // Имена сущностей храним без символа "&" и склеиваем на месте:
+            // последовательность вида "&" в исходнике при сохранении файла
+            // превращается в "&", и экранирование молча перестаёт работать.
+            const entity = { "&": "amp", "<": "lt", ">": "gt", '"': "quot", "'": "#39" };
+            return String(s == null ? "" : s).replace(/[&<>"']/g, c => "&" + entity[c] + ";");
+        }
+
+        function renderTasks(tasks) {
+            const list = document.getElementById("taskList");
+            if (!tasks.length) {
+                list.innerHTML = `<div class="empty"><span class="icon">🎉</span>${t("empty")}</div>`;
+                return;
+            }
+            list.innerHTML = tasks.map(tk => {
+                const done = tk.status === "done";
+                return `
+                    <div class="task-card ${done ? 'done' : ''}">
+                        <button class="task-check" onclick="toggleTask('${tk.id}', ${!done})">${done ? '✓' : ''}</button>
+                        <div class="task-body">
+                            <div class="task-text">${escapeHtml(tk.task)}</div>
+                            <span class="task-time">${done ? t("doneLabel") : t("created")} ${formatDate(tk.created_at)}</span>
+                        </div>
+                        <button class="task-del" onclick="deleteTask('${tk.id}')">✕</button>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        // ================= ПЛАНИРОВЩИК =================
+        let scheduleMode = "once";
+
+        const WEEK_NAMES = {
+            "0": () => t("wd0"), "1": () => t("wd1"), "2": () => t("wd2"),
+            "3": () => t("wd3"), "4": () => t("wd4"), "5": () => t("wd5"), "6": () => t("wd6")
+        };
+
+        function pad2(n) { return String(n).padStart(2, "0"); }
+
+        function fillSelect(el, count, selected) {
+            let html = "";
+            for (let i = 0; i < count; i++) {
+                html += `<option value="${i}" ${i === selected ? "selected" : ""}>${pad2(i)}</option>`;
+            }
+            el.innerHTML = html;
+        }
+
+        let timeSelectorsReady = false;
+
+        function initTimeSelectors() {
+            const now = new Date();
+            fillSelect(document.getElementById("hourInput"), 24, now.getHours());
+            fillSelect(document.getElementById("minuteInput"), 60, now.getMinutes());
+            fillSelect(document.getElementById("secondInput"), 60, now.getSeconds());
+
+            const dayEl = document.getElementById("dayInput");
+            const monEl = document.getElementById("monthInput");
+            const yrEl  = document.getElementById("yearInput");
+            if (!dayEl.value) dayEl.value = now.getDate();
+            if (!monEl.value) monEl.value = now.getMonth() + 1;
+            if (!yrEl.value)  yrEl.value  = now.getFullYear();
+
+            // Слушатели вешаем один раз: openTaskModal() вызывается при каждом открытии,
+            // иначе обработчики накапливались бы и updatePreview() срабатывал многократно.
+            if (!timeSelectorsReady) {
+                ["hourInput", "minuteInput", "secondInput", "weekDay", "dayInput", "monthInput", "yearInput"]
+                    .forEach(id => document.getElementById(id).addEventListener("change", updatePreview));
+                timeSelectorsReady = true;
+            }
+        }
+
+        function setMode(mode) {
+            scheduleMode = mode;
+            document.querySelectorAll(".seg-btn").forEach(b => {
+                b.classList.toggle("active", b.dataset.mode === mode);
+            });
+            document.getElementById("weekPart").classList.toggle("hidden", mode !== "weekly");
+            document.getElementById("datePart").classList.toggle("hidden", mode !== "once");
+            updatePreview();
+        }
+
+        function getTime() {
+            const h = pad2(document.getElementById("hourInput").value);
+            const m = pad2(document.getElementById("minuteInput").value);
+            const s = pad2(document.getElementById("secondInput").value);
+            return `${h}:${m}:${s}`;
+        }
+
+        function buildScheduleLabel() {
+            const time = getTime();
+            if (scheduleMode === "daily") {
+                return `${t("dailyIn")} ${time}`;
+            }
+            if (scheduleMode === "weekly") {
+                const wd = document.getElementById("weekDay").value;
+                const wdName = (WEEK_NAMES[wd] && WEEK_NAMES[wd]()) || "";
+                return `${t("weeklyIn")} (${wdName}) ${t("at")} ${time}`;
+            }
+            const d = pad2(document.getElementById("dayInput").value || "0");
+            const m = pad2(document.getElementById("monthInput").value || "0");
+            const y = document.getElementById("yearInput").value || "----";
+            return `${t("modeOnce")} ${d}.${m}.${y} ${t("at")} ${time}`;
+        }
+
+        function updatePreview() {
+            document.getElementById("schedulePreview").textContent = "🔔 " + buildScheduleLabel();
+        }
+
+        function openTaskModal() {
+            document.getElementById("taskText").value = "";
+            initTimeSelectors();
+            setMode("once");
+            document.getElementById("taskModalOverlay").classList.add("active");
+        }
+
+        function closeTaskModal() {
+            document.getElementById("taskModalOverlay").classList.remove("active");
+        }
+
+        function validateSchedule() {
+            if (scheduleMode !== "once") return null;
+            const d = parseInt(document.getElementById("dayInput").value, 10);
+            const m = parseInt(document.getElementById("monthInput").value, 10);
+            const y = parseInt(document.getElementById("yearInput").value, 10);
+            if (!d || d < 1 || d > 31) return t("dayErr");
+            if (!m || m < 1 || m > 12) return t("monthErr");
+            if (!y || y < 2025 || y > 2100) return t("yearErr");
+            return null;
+        }
+
+        async function saveTask() {
+            const text = document.getElementById("taskText").value.trim();
+            if (!text) { toast(t("writeTask")); return; }
+
+            const err = validateSchedule();
+            if (err) { toast("❌ " + err); return; }
+
+            const label = buildScheduleLabel();
+            const task = `[${label}] ${text}`;
+
+            try {
+                const res = await fetch(`${SERVER}/remember`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: apiKey, task })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeTaskModal();
+                    toast(t("added"));
+                    loadTasks();
+                } else {
+                    toast("❌ " + (data.error || t("error")));
+                }
+            } catch (e) {
+                toast("❌ " + t("serverDown"));
+            }
+        }
+
+        async function toggleTask(id, complete) {
+            if (complete) {
+                try {
+                    const res = await fetch(`${SERVER}/complete_task`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ api_key: apiKey, task_id: id })
+                    });
+                    const data = await res.json();
+                    if (data.success) { toast("✅ " + t("doneLabel")); loadTasks(); }
+                    else toast("❌ " + (data.error || t("error")));
+                } catch (e) { toast("❌ " + t("serverDown")); }
+            } else {
+                toast(t("unmark"));
+            }
+        }
+
+        async function deleteTask(id) {
+            try {
+                // Удаление через завершение (done) — задание скрывается из списка активных
+                const res = await fetch(`${SERVER}/complete_task`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: apiKey, task_id: id })
+                });
+                const data = await res.json();
+                if (data.success) { toast(t("deleted")); loadTasks(); }
+                else toast("❌ " + (data.error || t("error")));
+            } catch (e) { toast("❌ " + t("serverDown")); }
+        }
+
+        document.getElementById("taskModalOverlay").addEventListener("click", function(e) {
+            if (e.target === this) closeTaskModal();
+        });
+
+        applyLang();
+        loadTasks();
+    </script>
+</body>
+</html>

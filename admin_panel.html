@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔐 Админка — OmniLAMo</title>
+<style>
+    :root {
+        --bg:#0d1117; --panel:#161b22; --input:#21262d; --border:#30363d;
+        --text:#e6edf3; --muted:#8b949e; --accent:#1f6feb;
+        --green:#3fb950; --red:#da3633; --yellow:#d29922;
+    }
+    * { margin:0; padding:0; box-sizing:border-box;
+        font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background:var(--bg); color:var(--text); padding:20px; max-width:760px; margin:0 auto; }
+    h1 { color:var(--accent); margin-bottom:6px; font-size:26px; }
+    .subtitle { color:var(--muted); margin-bottom:20px; font-size:14px; }
+    .card { background:var(--panel); border-radius:12px; padding:20px; margin-bottom:15px; border:1px solid var(--border); }
+    .card h3 { margin-bottom:15px; font-size:17px; }
+    button { background:var(--accent); color:#fff; border:none; padding:12px 20px; border-radius:8px;
+             cursor:pointer; font-size:15px; margin:5px 0; width:100%; }
+    button:hover { filter:brightness(1.15); }
+    button:active { transform:scale(0.99); }
+    button.secondary { background:var(--input); }
+    button.danger { background:var(--red); }
+    button.green { background:var(--green); color:#08130a; font-weight:600; }
+    input, select, textarea { background:var(--input); border:1px solid var(--border); padding:12px;
+        border-radius:8px; color:#fff; width:100%; margin:5px 0; font-size:15px; }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
+    label { display:block; font-size:13px; color:var(--muted); margin-top:10px; }
+    .hint { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.5; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .stat-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+    .stat-item { background:var(--input); padding:15px; border-radius:8px; text-align:center; }
+    .stat-value { font-size:26px; font-weight:700; color:var(--accent); }
+    .stat-label { font-size:12px; color:var(--muted); margin-top:5px; }
+    .user-item { background:var(--input); padding:12px; border-radius:8px; margin-bottom:8px; font-size:14px;
+                 display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .badge { padding:4px 8px; border-radius:4px; font-size:12px; background:#333; white-space:nowrap; }
+    .badge.paid { background:var(--green); color:#08130a; }
+    .hidden { display:none; }
+    .msg { padding:10px 14px; border-radius:8px; margin:10px 0; font-size:14px; }
+    .msg.error { background:rgba(218,54,51,.15); color:#ff9b98; border:1px solid var(--red); }
+    .msg.ok { background:rgba(63,185,80,.15); color:#8ff09a; border:1px solid var(--green); }
+    @media (max-width:560px) {
+        .stat-grid { grid-template-columns:1fr 1fr; }
+        .row { grid-template-columns:1fr; }
+    }
+</style>
+</head>
+<body>
+    <h1>🔐 Админка агента</h1>
+    <p class="subtitle">Пользователи, подписки и настройки нейросети</p>
+
+    <div id="loginScreen">
+        <div class="card">
+            <h3>Вход</h3>
+            <input type="password" id="passwordInput" placeholder="Пароль администратора">
+            <button onclick="login()">Войти</button>
+            <div class="hint">Пароль берётся из переменной окружения <code>ADMIN_PASSWORD</code> (или из поля <code>admin_password</code> в settings.json). Пароля по умолчанию нет: пока он не задан, вход в админку закрыт.</div>
+            <div class="msg error hidden" id="loginError">Неверный пароль</div>
+        </div>
+    </div>
+
+    <div id="mainPanel" class="hidden">
+        <div class="card">
+            <h3>📊 Статистика</h3>
+            <div class="stat-grid">
+                <div class="stat-item"><div class="stat-value" id="statUsers">0</div><div class="stat-label">Всего юзеров</div></div>
+                <div class="stat-item"><div class="stat-value" id="statPaid">0</div><div class="stat-label">Платных</div></div>
+                <div class="stat-item"><div class="stat-value" id="statMessages">0</div><div class="stat-label">Сообщений</div></div>
+                <div class="stat-item"><div class="stat-value" id="statRevenue">0 ₽</div><div class="stat-label">Доход</div></div>
+            </div>
+            <button class="secondary" onclick="refreshStats()">🔄 Обновить</button>
+        </div>
+
+        <div class="card">
+            <h3>🧠 Нейросеть: путь и API</h3>
+            <div id="settingsMsg"></div>
+
+            <label for="baseUrl">Путь (Base URL)</label>
+            <input type="text" id="baseUrl" placeholder="https://api.groq.com/openai/v1">
+            <div class="hint">
+                Любой OpenAI-совместимый адрес. Сервер сам допишет <code>/chat/completions</code>.<br>
+                Примеры: <code>https://api.groq.com/openai/v1</code> · <code>https://api.openai.com/v1</code> ·
+                <code>https://openrouter.ai/api/v1</code> · <code>http://127.0.0.1:1234/v1</code>
+            </div>
+
+            <label for="apiKey">API-ключ</label>
+            <input type="password" id="apiKey" placeholder="Оставь пустым, чтобы не менять">
+            <div class="hint" id="apiKeyHint">Текущий: —</div>
+
+            <label for="model">Модель</label>
+            <input type="text" id="model" placeholder="llama-3.3-70b-versatile">
+
+            <div class="row">
+                <div>
+                    <label for="temperature">Температура</label>
+                    <input type="number" id="temperature" step="0.1" min="0" max="2">
+                </div>
+                <div>
+                    <label for="maxTokens">Максимум токенов</label>
+                    <input type="number" id="maxTokens" min="16" max="8000">
+                </div>
+            </div>
+
+            <label for="systemPrompt">Системная инструкция</label>
+            <textarea id="systemPrompt" rows="3"></textarea>
+
+            <div class="hint" id="settingsFileHint"></div>
+            <button class="green" onclick="saveSettings()">💾 Сохранить настройки</button>
+            <button class="secondary" onclick="testSettings()">🧪 Проверить связь</button>
+            <button class="secondary" onclick="loadSettings()">↩️ Сбросить изменения</button>
+        </div>
+
+        <div class="card">
+            <h3>🎁 Выдать подписку</h3>
+            <input type="text" id="userKeyInput" placeholder="API-ключ пользователя">
+            <button onclick="giveSubscription()">Выдать</button>
+            <div class="msg hidden" id="giveMsg"></div>
+        </div>
+
+        <div class="card">
+            <h3>👥 Пользователи</h3>
+            <input type="text" id="searchInput" placeholder="Поиск по имени..." oninput="renderUsers()">
+            <button class="secondary" onclick="loadUsers()">🔄 Загрузить</button>
+            <div id="userList"></div>
+        </div>
+
+        <button class="danger" onclick="logout()">🚪 Выйти</button>
+    </div>
+
+<script>
+    // Адрес бэкенда определяется автоматически.
+    // Если страница открыта тем же сервером (http://127.0.0.1:8000/admin или Render) —
+    // запросы идут относительным путём. Если файл открыт напрямую с диска (file://)
+    // или с другого порта — переключаемся на локальный сервер :8000,
+    // иначе браузер ругается "Failed to fetch".
+    const SERVER = (function () {
+        if (location.protocol === "file:") return "http://127.0.0.1:8000";
+        const localNames = ["localhost", "127.0.0.1", "[::1]"];
+        if (localNames.includes(location.hostname) && location.port !== "8000") {
+            return "http://127.0.0.1:8000";
+        }
+        return "";
+    })();
+    let ADMIN_PASSWORD = "";
+    let allUsers = [];
+
+    // ---------- ВХОД ----------
+    function login() {
+        const password = document.getElementById("passwordInput").value.trim();
+        if (!password) return;
+        ADMIN_PASSWORD = password;
+        // Проверяем пароль реальным запросом, а не сравнением на клиенте
+        fetch(`${SERVER}/admin_settings_data?admin_password=${encodeURIComponent(password)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) throw new Error(data.error || "Неверный пароль");
+                document.getElementById("loginScreen").classList.add("hidden");
+                document.getElementById("mainPanel").classList.remove("hidden");
+                applySettings(data.settings);
+                refreshStats();
+                loadUsers();
+            })
+            .catch(err => {
+                ADMIN_PASSWORD = "";
+                const box = document.getElementById("loginError");
+                box.textContent = "❌ " + (err.message || "Неверный пароль");
+                box.classList.remove("hidden");
+                setTimeout(() => box.classList.add("hidden"), 2500);
+            });
+    }
+
+    function logout() {
+        ADMIN_PASSWORD = "";
+        allUsers = [];
+        document.getElementById("mainPanel").classList.add("hidden");
+        document.getElementById("loginScreen").classList.remove("hidden");
+        document.getElementById("passwordInput").value = "";
+    }
+
+    function note(text, isError) {
+        const box = document.getElementById("settingsMsg");
+        box.className = "msg " + (isError ? "error" : "ok");
+        box.textContent = text;
+    }
+
+    // ---------- СТАТИСТИКА ----------
+    function refreshStats() {
+        fetch(`${SERVER}/admin_stats_data?admin_password=${encodeURIComponent(ADMIN_PASSWORD)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                const s = data.stats;
+                document.getElementById("statUsers").textContent = s.total_users;
+                document.getElementById("statPaid").textContent = s.paid_users;
+                document.getElementById("statMessages").textContent = s.total_messages;
+                document.getElementById("statRevenue").textContent = s.revenue_rub + " ₽";
+            })
+            .catch(() => {});
+    }
+
+    // ---------- НАСТРОЙКИ ----------
+    function applySettings(s) {
+        document.getElementById("baseUrl").value = s.ai_base_url || "";
+        document.getElementById("apiKey").value = "";
+        document.getElementById("model").value = s.ai_model || "";
+        document.getElementById("temperature").value = s.temperature;
+        document.getElementById("maxTokens").value = s.max_tokens;
+        document.getElementById("systemPrompt").value = s.system_prompt || "";
+        document.getElementById("apiKeyHint").textContent =
+            "Текущий: " + (s.ai_api_key_set ? s.ai_api_key_masked : "не задан") +
+            " — пустое поле оставит его без изменений.";
+        document.getElementById("settingsFileHint").textContent = "Файл настроек: " + s.settings_file;
+    }
+
+    function loadSettings() {
+        fetch(`${SERVER}/admin_settings_data?admin_password=${encodeURIComponent(ADMIN_PASSWORD)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { applySettings(data.settings); note("Поля сброшены к сохранённым значениям", false); }
+                else note(data.error || "Ошибка", true);
+            })
+            .catch(() => note("Сервер недоступен", true));
+    }
+
+    function saveSettings() {
+        const patch = {
+            ai_base_url: document.getElementById("baseUrl").value.trim(),
+            ai_api_key: document.getElementById("apiKey").value.trim(),
+            ai_model: document.getElementById("model").value.trim(),
+            temperature: document.getElementById("temperature").value,
+            max_tokens: document.getElementById("maxTokens").value,
+            system_prompt: document.getElementById("systemPrompt").value.trim()
+        };
+        fetch(`${SERVER}/admin_settings_save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_password: ADMIN_PASSWORD, patch })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { applySettings(data.settings); note("✅ Настройки сохранены", false); }
+                else note("❌ " + (data.error || "Ошибка сохранения"), true);
+            })
+            .catch(() => note("❌ Сервер недоступен", true));
+    }
+
+    function testSettings() {
+        note("Проверяю связь...", false);
+        fetch(`${SERVER}/admin_settings_test`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_password: ADMIN_PASSWORD })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) note("✅ Нейросеть ответила: " + (data.answer || "(пусто)"), false);
+                else note("❌ " + (data.error || "Нет ответа"), true);
+            })
+            .catch(() => note("❌ Сервер недоступен", true));
+    }
+
+    // ---------- ПОДПИСКА ----------
+    function giveSubscription() {
+        const api_key = document.getElementById("userKeyInput").value.trim();
+        const box = document.getElementById("giveMsg");
+        if (!api_key) {
+            box.className = "msg error";
+            box.textContent = "❌ Введи API-ключ";
+            return;
+        }
+        fetch(`${SERVER}/admin_give_sub_data`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_password: ADMIN_PASSWORD, api_key, days: 30 })
+        })
+            .then(r => r.json())
+            .then(data => {
+                box.className = "msg " + (data.success ? "ok" : "error");
+                box.textContent = data.success ? "✅ Подписка выдана" : "❌ " + (data.error || "Ошибка");
+                if (data.success) {
+                    document.getElementById("userKeyInput").value = "";
+                    refreshStats();
+                    loadUsers();
+                }
+            })
+            .catch(() => {
+                box.className = "msg error";
+                box.textContent = "❌ Сервер недоступен";
+            });
+    }
+
+    // ---------- ПОЛЬЗОВАТЕЛИ ----------
+    function loadUsers() {
+        fetch(`${SERVER}/admin_users_data?admin_password=${encodeURIComponent(ADMIN_PASSWORD)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { allUsers = data.users || []; renderUsers(); }
+            })
+            .catch(() => {});
+    }
+
+    function renderUsers() {
+        const query = document.getElementById("searchInput").value.trim().toLowerCase();
+        const list = query ? allUsers.filter(u => (u.name || "").toLowerCase().includes(query)) : allUsers;
+        const box = document.getElementById("userList");
+        if (!list.length) {
+            box.innerHTML = "<p style='color:var(--muted);padding:10px 0'>Никого не найдено</p>";
+            return;
+        }
+        box.innerHTML = list.map(u => {
+            const paid = u.tariff && u.tariff !== "free";
+            return `<div class="user-item">
+                <div>
+                    <b>${escapeHtml(u.name || "—")}</b><br>
+                    <small style="color:var(--muted)">${escapeHtml(u.api_key || "")}</small>
+                </div>
+                <span class="badge ${paid ? "paid" : ""}">${escapeHtml(u.tariff || "free")}</span>
+            </div>`;
+        }).join("");
+    }
+
+    // Экранирование имён и ключей: они приходят из базы и попадают в innerHTML.
+    // Сущности записаны через \u0026, иначе сам файл при сохранении превратил бы их обратно в символы.
+    function escapeHtml(s) {
+        const map = {
+            "&": "\u0026amp;",
+            "<": "\u0026lt;",
+            ">": "\u0026gt;",
+            '"': "\u0026quot;",
+            "'": "\u0026#39;"
+        };
+        return String(s).replace(/[&<>"']/g, c => map[c]);
+    }
+
+    document.getElementById("passwordInput").addEventListener("keypress", e => {
+        if (e.key === "Enter") login();
+    });
+</script>
+</body>
+</html>

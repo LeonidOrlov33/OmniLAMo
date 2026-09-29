@@ -1,0 +1,13 @@
+# Зависимости OmniLAMo (free beta).
+# Версии зафиксированы по локальному рабочему окружению: на них сервер
+# запускается и проходит test_smoke.py. Без закрепа Render может поставить
+# свежий pydantic, несовместимый с fastapi 0.109.
+
+fastapi==0.109.0
+uvicorn==0.27.0
+pydantic==2.13.5
+supabase==2.31.0
+requests==2.32.5
+beautifulsoup4==4.12.3
+lxml==5.2.2
+cryptography==42.0.8
