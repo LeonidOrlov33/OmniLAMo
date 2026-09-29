@@ -222,11 +222,11 @@ app.add_middleware(
 # -------------------------------------------------
 
 
-from fastapi.responses import RedirectResponse
-
 @app.get("/")
 def home():
-    return RedirectResponse(url="/index.html"
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/index.html")
+"
 
 
 # Отдельный пул потоков только для проверки живости. Синхронные обработчики
