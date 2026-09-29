@@ -221,9 +221,12 @@ app.add_middleware(
 # ЭНДПОИНТЫ
 # -------------------------------------------------
 
+
+from fastapi.responses import RedirectResponse
+
 @app.get("/")
 def home():
-    return {"status": "ok", "version": "free-beta"}
+    return RedirectResponse(url="/index.html"
 
 
 # Отдельный пул потоков только для проверки живости. Синхронные обработчики
