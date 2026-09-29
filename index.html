@@ -952,16 +952,16 @@
         // Подписи кнопки озвучки. Отдельным блоком по той же причине, что и
         // SITE_I18N: правки в десяти языковых секциях выше разъехались бы.
         const VOICE_I18N = {
-            ru: { voiceOnTitle: "🔊 Озвучка включена — нажми, чтобы выключить", voiceOffTitle: "🔇 Озвучка выключена — нажми, чтобы включить" },
-            en: { voiceOnTitle: "🔊 Voice on — tap to turn off", voiceOffTitle: "🔇 Voice off — tap to turn on" },
-            zh: { voiceOnTitle: "🔊 语音已开启 — 点击关闭", voiceOffTitle: "🔇 语音已关闭 — 点击开启" },
-            es: { voiceOnTitle: "🔊 Voz activada — toca para desactivar", voiceOffTitle: "🔇 Voz desactivada — toca para activar" },
-            hi: { voiceOnTitle: "🔊 आवाज़ चालू — बंद करने के लिए दबाएँ", voiceOffTitle: "🔇 आवाज़ बंद — चालू करने के लिए दबाएँ" },
-            ar: { voiceOnTitle: "🔊 الصوت مفعّل — اضغط للإيقاف", voiceOffTitle: "🔇 الصوت متوقف — اضغط للتشغيل" },
-            fr: { voiceOnTitle: "🔊 Voix activée — appuie pour couper", voiceOffTitle: "🔇 Voix coupée — appuie pour activer" },
-            de: { voiceOnTitle: "🔊 Stimme an — zum Ausschalten tippen", voiceOffTitle: "🔇 Stimme aus — zum Einschalten tippen" },
-            ja: { voiceOnTitle: "🔊 読み上げオン — タップでオフ", voiceOffTitle: "🔇 読み上げオフ — タップでオン" },
-            pt: { voiceOnTitle: "🔊 Voz ligada — toque para desligar", voiceOffTitle: "🔇 Voz desligada — toque para ligar" }
+            ru: { voiceOnTitle: "🔊 Озвучка включена — нажми, чтобы выключить", voiceOffTitle: "🔇 Озвучка выключена — нажми, чтобы включить", voiceUnsupported: "Браузер не поддерживает ввод голосом. Попробуй Chrome или Edge." },
+            en: { voiceOnTitle: "🔊 Voice on — tap to turn off", voiceOffTitle: "🔇 Voice off — tap to turn on", voiceUnsupported: "This browser has no speech recognition. Try Chrome or Edge." },
+            zh: { voiceOnTitle: "🔊 语音已开启 — 点击关闭", voiceOffTitle: "🔇 语音已关闭 — 点击开启", voiceUnsupported: "此浏览器不支持语音输入。请使用 Chrome 或 Edge。" },
+            es: { voiceOnTitle: "🔊 Voz activada — toca para desactivar", voiceOffTitle: "🔇 Voz desactivada — toca para activar", voiceUnsupported: "Este navegador no admite dictado por voz. Usa Chrome o Edge." },
+            hi: { voiceOnTitle: "🔊 आवाज़ चालू — बंद करने के लिए दबाएँ", voiceOffTitle: "🔇 आवाज़ बंद — चालू करने के लिए दबाएँ", voiceUnsupported: "यह ब्राउज़र आवाज़ से इनपुट नहीं कर सकता। Chrome या Edge आज़माएँ।" },
+            ar: { voiceOnTitle: "🔊 الصوت مفعّل — اضغط للإيقاف", voiceOffTitle: "🔇 الصوت متوقف — اضغط للتشغيل", voiceUnsupported: "هذا المتصفح لا يدعم الإدخال الصوتي. جرّب Chrome أو Edge." },
+            fr: { voiceOnTitle: "🔊 Voix activée — appuie pour couper", voiceOffTitle: "🔇 Voix coupée — appuie pour activer", voiceUnsupported: "Ce navigateur ne gère pas la dictée vocale. Essaie Chrome ou Edge." },
+            de: { voiceOnTitle: "🔊 Stimme an — zum Ausschalten tippen", voiceOffTitle: "🔇 Stimme aus — zum Einschalten tippen", voiceUnsupported: "Dieser Browser kann keine Spracheingabe. Versuche Chrome oder Edge." },
+            ja: { voiceOnTitle: "🔊 読み上げオン — タップでオフ", voiceOffTitle: "🔇 読み上げオフ — タップでオン", voiceUnsupported: "このブラウザは音声入力に対応していません。Chrome か Edge をお試しください。" },
+            pt: { voiceOnTitle: "🔊 Voz ligada — toque para desligar", voiceOffTitle: "🔇 Voz desligada — toque para ligar", voiceUnsupported: "Este navegador não tem ditado por voz. Tente Chrome ou Edge." }
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], VOICE_I18N[code] || VOICE_I18N.en));
 
@@ -1215,23 +1215,77 @@
             }
         }
 
+        // Распознавание живёт в одном объекте на всю страницу. Раньше каждый
+        // клик создавал новый Recognition и запускал его поверх предыдущего:
+        // Chrome отвечает InvalidStateError, исключение вылетало из toggleMic
+        // до снятия класса .rec, и кнопка навсегда залипала красной — со
+        // стороны это и выглядит как «ввод голосом перестал работать».
+        let micRecognition = null;
+        let micActive = false;
+
+        function micStop() {
+            const btn = document.getElementById("micBtn");
+            if (btn) btn.classList.remove("rec");
+            micActive = false;
+            if (micRecognition) {
+                try { micRecognition.stop(); } catch (e) {}
+            }
+        }
+
         function toggleMic() {
             const btn = document.getElementById("micBtn");
-            btn.classList.toggle("rec");
-            if (btn.classList.contains("rec")) {
-                const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-                recognition.lang = LANG === "zh" ? "zh-CN" : LANG === "ja" ? "ja-JP" : LANG === "ar" ? "ar-SA" : LANG === "hi" ? "hi-IN" : LANG;
-                recognition.onresult = (e) => {
-                    const text = e.results[0][0].transcript;
-                    document.getElementById("userInput").value = text;
-                    btn.classList.remove("rec");
-                    sendMessage();
-                };
-                recognition.onerror = () => {
-                    addMsg(t("voiceError"), "bot");
-                    btn.classList.remove("rec");
-                };
+            if (!btn) return;
+
+            // Второй тап по красной кнопке — выключение.
+            if (micActive) { micStop(); return; }
+
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                // Раньше здесь было new undefined() — TypeError без единого
+                // сообщения в ленте, и пользователь не понимал, что случилось.
+                addMsg("❌ " + t("voiceUnsupported"), "bot");
+                return;
+            }
+
+            try {
+                micRecognition = new SR();
+            } catch (e) {
+                addMsg("❌ " + t("voiceError"), "bot");
+                return;
+            }
+
+            const recognition = micRecognition;
+            recognition.lang = voiceLang();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (e) => {
+                const text = e.results[0][0].transcript;
+                micStop();
+                document.getElementById("userInput").value = text;
+                sendMessage();
+            };
+            recognition.onerror = (e) => {
+                const wasActive = micActive;
+                micStop();
+                // «aborted» прилетает от нашего же stop() — это не ошибка.
+                if (e && e.error === "aborted") return;
+                if (wasActive) addMsg("❌ " + t("voiceError"), "bot");
+            };
+            recognition.onend = () => {
+                // Браузер завершает сессию сам после паузы — гасим индикатор,
+                // иначе кнопка остаётся красной при уже мёртвом распознавании.
+                if (micActive) micStop();
+            };
+
+            micActive = true;
+            btn.classList.add("rec");
+            try {
                 recognition.start();
+            } catch (e) {
+                micStop();
+                addMsg("❌ " + t("voiceError"), "bot");
             }
         }
 
