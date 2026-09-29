@@ -952,16 +952,16 @@
         // Подписи кнопки озвучки. Отдельным блоком по той же причине, что и
         // SITE_I18N: правки в десяти языковых секциях выше разъехались бы.
         const VOICE_I18N = {
-            ru: { voiceOnTitle: "🔊 Озвучка включена — нажми, чтобы выключить", voiceOffTitle: "🔇 Озвучка выключена — нажми, чтобы включить", voiceUnsupported: "Браузер не поддерживает ввод голосом. Попробуй Chrome или Edge." },
-            en: { voiceOnTitle: "🔊 Voice on — tap to turn off", voiceOffTitle: "🔇 Voice off — tap to turn on", voiceUnsupported: "This browser has no speech recognition. Try Chrome or Edge." },
-            zh: { voiceOnTitle: "🔊 语音已开启 — 点击关闭", voiceOffTitle: "🔇 语音已关闭 — 点击开启", voiceUnsupported: "此浏览器不支持语音输入。请使用 Chrome 或 Edge。" },
-            es: { voiceOnTitle: "🔊 Voz activada — toca para desactivar", voiceOffTitle: "🔇 Voz desactivada — toca para activar", voiceUnsupported: "Este navegador no admite dictado por voz. Usa Chrome o Edge." },
-            hi: { voiceOnTitle: "🔊 आवाज़ चालू — बंद करने के लिए दबाएँ", voiceOffTitle: "🔇 आवाज़ बंद — चालू करने के लिए दबाएँ", voiceUnsupported: "यह ब्राउज़र आवाज़ से इनपुट नहीं कर सकता। Chrome या Edge आज़माएँ।" },
-            ar: { voiceOnTitle: "🔊 الصوت مفعّل — اضغط للإيقاف", voiceOffTitle: "🔇 الصوت متوقف — اضغط للتشغيل", voiceUnsupported: "هذا المتصفح لا يدعم الإدخال الصوتي. جرّب Chrome أو Edge." },
-            fr: { voiceOnTitle: "🔊 Voix activée — appuie pour couper", voiceOffTitle: "🔇 Voix coupée — appuie pour activer", voiceUnsupported: "Ce navigateur ne gère pas la dictée vocale. Essaie Chrome ou Edge." },
-            de: { voiceOnTitle: "🔊 Stimme an — zum Ausschalten tippen", voiceOffTitle: "🔇 Stimme aus — zum Einschalten tippen", voiceUnsupported: "Dieser Browser kann keine Spracheingabe. Versuche Chrome oder Edge." },
-            ja: { voiceOnTitle: "🔊 読み上げオン — タップでオフ", voiceOffTitle: "🔇 読み上げオフ — タップでオン", voiceUnsupported: "このブラウザは音声入力に対応していません。Chrome か Edge をお試しください。" },
-            pt: { voiceOnTitle: "🔊 Voz ligada — toque para desligar", voiceOffTitle: "🔇 Voz desligada — toque para ligar", voiceUnsupported: "Este navegador não tem ditado por voz. Tente Chrome ou Edge." }
+            ru: { voiceOnTitle: "🔊 Озвучка включена — нажми, чтобы выключить", voiceOffTitle: "🔇 Озвучка выключена — нажми, чтобы включить", voiceUnsupported: "Браузер не поддерживает ввод голосом. Попробуй Chrome или Edge.", voiceNothing: "Ничего не расслышал — попробуй ещё раз.", voiceTimeout: "❌ Распознавание речи не ответило. Обычно это значит, что браузер не может дотянуться до службы распознавания (чаще всего — серверы Google): проверь, открывается ли google.com. Пока можно ввести текст вручную." },
+            en: { voiceOnTitle: "🔊 Voice on — tap to turn off", voiceOffTitle: "🔇 Voice off — tap to turn on", voiceUnsupported: "This browser has no speech recognition. Try Chrome or Edge.", voiceNothing: "Didn't catch that — try again.", voiceTimeout: "❌ Speech recognition didn't respond. The browser likely can't reach the recognition service (usually Google's servers) — check whether google.com opens. You can type your message for now." },
+            zh: { voiceOnTitle: "🔊 语音已开启 — 点击关闭", voiceOffTitle: "🔇 语音已关闭 — 点击开启", voiceUnsupported: "此浏览器不支持语音输入。请使用 Chrome 或 Edge。", voiceNothing: "没有听清 — 请再试一次。", voiceTimeout: "❌ 语音识别没有响应。浏览器可能无法连接到识别服务（通常是 Google 的服务器）——请检查 google.com 能否打开。暂时可以手动输入文字。" },
+            es: { voiceOnTitle: "🔊 Voz activada — toca para desactivar", voiceOffTitle: "🔇 Voz desactivada — toca para activar", voiceUnsupported: "Este navegador no admite dictado por voz. Usa Chrome o Edge.", voiceNothing: "No te escuché — inténtalo otra vez.", voiceTimeout: "❌ El reconocimiento de voz no respondió. Probablemente el navegador no alcanza el servicio de reconocimiento (normalmente los servidores de Google): comprueba si abre google.com. Por ahora puedes escribir el mensaje." },
+            hi: { voiceOnTitle: "🔊 आवाज़ चालू — बंद करने के लिए दबाएँ", voiceOffTitle: "🔇 आवाज़ बंद — चालू करने के लिए दबाएँ", voiceUnsupported: "यह ब्राउज़र आवाज़ से इनपुट नहीं कर सकता। Chrome या Edge आज़माएँ।", voiceNothing: "कुछ सुनाई नहीं दिया — फिर कोशिश करें।", voiceTimeout: "❌ आवाज़ पहचान ने जवाब नहीं दिया। संभव है ब्राउज़र पहचान सेवा (आमतौर पर Google के सर्वर) तक न पहुँच पा रहा हो — देखें कि google.com खुलता है या नहीं। अभी संदेश टाइप कर सकते हैं।" },
+            ar: { voiceOnTitle: "🔊 الصوت مفعّل — اضغط للإيقاف", voiceOffTitle: "🔇 الصوت متوقف — اضغط للتشغيل", voiceUnsupported: "هذا المتصفح لا يدعم الإدخال الصوتي. جرّب Chrome أو Edge.", voiceNothing: "لم أسمع شيئًا — حاول مرة أخرى.", voiceTimeout: "❌ لم تستجب خدمة التعرف على الصوت. على الأرجح أن المتصفح لا يصل إلى خدمة التعرف (عادةً خوادم Google) — تحقق من فتح google.com. يمكنك كتابة الرسالة الآن." },
+            fr: { voiceOnTitle: "🔊 Voix activée — appuie pour couper", voiceOffTitle: "🔇 Voix coupée — appuie pour activer", voiceUnsupported: "Ce navigateur ne gère pas la dictée vocale. Essaie Chrome ou Edge.", voiceNothing: "Je n'ai rien entendu — réessaie.", voiceTimeout: "❌ La reconnaissance vocale n'a pas répondu. Le navigateur n'atteint probablement pas le service de reconnaissance (souvent les serveurs de Google) — vérifie si google.com s'ouvre. En attendant, tu peux écrire ton message." },
+            de: { voiceOnTitle: "🔊 Stimme an — zum Ausschalten tippen", voiceOffTitle: "🔇 Stimme aus — zum Einschalten tippen", voiceUnsupported: "Dieser Browser kann keine Spracheingabe. Versuche Chrome oder Edge.", voiceNothing: "Nichts verstanden — versuche es noch einmal.", voiceTimeout: "❌ Die Spracherkennung hat nicht geantwortet. Der Browser erreicht den Erkennungsdienst vermutlich nicht (meist Googles Server) — prüfe, ob google.com sich öffnet. Du kannst die Nachricht vorerst eintippen." },
+            ja: { voiceOnTitle: "🔊 読み上げオン — タップでオフ", voiceOffTitle: "🔇 読み上げオフ — タップでオン", voiceUnsupported: "このブラウザは音声入力に対応していません。Chrome か Edge をお試しください。", voiceNothing: "聞き取れませんでした — もう一度お試しください。", voiceTimeout: "❌ 音声認識が応答しません。ブラウザが認識サービス（通常は Google のサーバー）に到達できていない可能性があります。google.com が開くか確認してください。今は手入力できます。" },
+            pt: { voiceOnTitle: "🔊 Voz ligada — toque para desligar", voiceOffTitle: "🔇 Voz desligada — toque para ligar", voiceUnsupported: "Este navegador não tem ditado por voz. Tente Chrome ou Edge.", voiceNothing: "Não ouvi nada — tente de novo.", voiceTimeout: "❌ O reconhecimento de voz não respondeu. Provavelmente o navegador não alcança o serviço de reconhecimento (geralmente os servidores do Google) — verifique se o google.com abre. Por enquanto, digite a mensagem." }
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], VOICE_I18N[code] || VOICE_I18N.en));
 
@@ -1221,23 +1221,87 @@
         // до снятия класса .rec, и кнопка навсегда залипала красной — со
         // стороны это и выглядит как «ввод голосом перестал работать».
         let micRecognition = null;
-        let micActive = false;
+        let micActive = false;   // идёт запись
+        let micFinal = "";       // распознанный текст
+        let micDone = false;     // результат уже отдан — чтобы не отправить дважды
+        let micWatchdog = null;  // сторож «а ответ-то будет?»
 
-        function micStop() {
+        // Chrome умеет молчать: start() проходит, кнопка горит, а onresult,
+        // onerror и onend не приходят вообще. Снаружи это неотличимо от
+        // «микрофон сломался», хотя на деле браузер не дотянулся до службы
+        // распознавания. Держим таймер и говорим об этом прямо.
+        const MIC_START_TIMEOUT = 12000;  // тишина с момента старта
+        const MIC_STOP_TIMEOUT = 4000;    // тишина после нажатия «стоп»
+
+        function micUnwatch() {
+            if (micWatchdog) {
+                clearTimeout(micWatchdog);
+                micWatchdog = null;
+            }
+        }
+
+        function micWatch(ms, onFire) {
+            micUnwatch();
+            micWatchdog = setTimeout(() => {
+                micWatchdog = null;
+                onFire();
+            }, ms);
+        }
+
+        function micClear() {
+            micUnwatch();
             const btn = document.getElementById("micBtn");
             if (btn) btn.classList.remove("rec");
             micActive = false;
-            if (micRecognition) {
-                try { micRecognition.stop(); } catch (e) {}
+        }
+
+        // Браузер не ответил ничем: ни текстом, ни ошибкой. Обрываем сессию
+        // и объясняем причину вместо молчания.
+        function micHang() {
+            if (micDone) return;
+            micDone = true;
+            micFinal = "";
+            micClear();
+            try { micRecognition.abort(); } catch (e) {}
+            addMsg(t("voiceTimeout"), "bot");
+        }
+
+        // Отдаём то, что успели распознать. Вызывается один раз на сессию —
+        // из onend, когда браузер закрыл распознавание.
+        function micFinish() {
+            if (micDone) return;
+            micDone = true;
+            micClear();
+            const text = micFinal.trim();
+            micFinal = "";
+            if (!text) {
+                addMsg("❌ " + t("voiceNothing"), "bot");
+                return;
             }
+            document.getElementById("userInput").value = text;
+            sendMessage();
         }
 
         function toggleMic() {
             const btn = document.getElementById("micBtn");
             if (!btn) return;
 
-            // Второй тап по красной кнопке — выключение.
-            if (micActive) { micStop(); return; }
+            // Второй тап по красной кнопке — «хватит». Именно stop(), а не
+            // abort(): stop() заставляет браузер дослать финальный результат
+            // в onresult, abort() выбросил бы его.
+            if (micActive) {
+                micActive = false;
+                btn.classList.remove("rec");
+                try {
+                    micRecognition.stop();
+                    // Ответ должен прийти за пару секунд. Если и тут тишина —
+                    // сессия уже мертва, отдаём то, что успели.
+                    micWatch(MIC_STOP_TIMEOUT, micFinish);
+                } catch (e) {
+                    micFinish();
+                }
+                return;
+            }
 
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SR) {
@@ -1250,42 +1314,62 @@
             try {
                 micRecognition = new SR();
             } catch (e) {
-                addMsg("❌ " + t("voiceError"), "bot");
+                addMsg(t("voiceError") + " (" + e.name + ")", "bot");
                 return;
             }
 
             const recognition = micRecognition;
             recognition.lang = voiceLang();
-            recognition.continuous = false;
-            recognition.interimResults = false;
+            // continuous + interim: текст появляется в поле прямо во время
+            // речи. При false браузер молчал до первой паузы, и нажатие
+            // «стоп» обрывало сессию раньше единственного финального ответа.
+            recognition.continuous = true;
+            recognition.interimResults = true;
             recognition.maxAlternatives = 1;
 
+            micFinal = "";
+            micDone = false;
+
             recognition.onresult = (e) => {
-                const text = e.results[0][0].transcript;
-                micStop();
-                document.getElementById("userInput").value = text;
-                sendMessage();
+                // Пришёл хоть какой-то текст — служба жива, сторож не нужен.
+                micUnwatch();
+                let interim = "";
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    const chunk = e.results[i][0].transcript;
+                    if (e.results[i].isFinal) micFinal += chunk;
+                    else interim += chunk;
+                }
+                const input = document.getElementById("userInput");
+                if (input) input.value = (micFinal + interim).trim();
             };
             recognition.onerror = (e) => {
-                const wasActive = micActive;
-                micStop();
-                // «aborted» прилетает от нашего же stop() — это не ошибка.
-                if (e && e.error === "aborted") return;
-                if (wasActive) addMsg("❌ " + t("voiceError"), "bot");
+                const code = e && e.error ? e.error : "unknown";
+                // «aborted» — это наш собственный stop(), нормальный конец
+                // сессии, а не ошибка. Но результат уже должен был прийти.
+                if (code === "aborted") { micUnwatch(); return; }
+                micClear();
+                micDone = true;
+                micFinal = "";
+                addMsg(t("voiceError") + " (" + code + ")", "bot");
             };
             recognition.onend = () => {
-                // Браузер завершает сессию сам после паузы — гасим индикатор,
-                // иначе кнопка остаётся красной при уже мёртвом распознавании.
-                if (micActive) micStop();
+                // Сюда приходит и наш stop(), и самостоятельный обрыв браузера.
+                micFinish();
             };
 
             micActive = true;
             btn.classList.add("rec");
             try {
                 recognition.start();
+                // Chrome сам сообщает о тишине в микрофон (no-speech) секунд
+                // через восемь. Если и этого не случилось за двенадцать —
+                // значит, ответа от службы распознавания нет вовсе.
+                micWatch(MIC_START_TIMEOUT, micHang);
             } catch (e) {
-                micStop();
-                addMsg("❌ " + t("voiceError"), "bot");
+                micActive = false;
+                btn.classList.remove("rec");
+                micDone = true;
+                addMsg(t("voiceError") + " (" + e.name + ")", "bot");
             }
         }
 
