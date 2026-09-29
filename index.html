@@ -333,10 +333,19 @@
             background: transparent; 
             padding: 15px; 
             display: flex; 
+            flex-direction: column;
             gap: 10px; 
-            align-items: center; 
             border-top: 1px solid var(--glass-border);
         }
+        /* Два ряда вместо одного: сверху главное (микрофон, ввод, отправка),
+           снизу — дополнительные кнопки. В одну строку пять элементов на
+           узком экране сжимали поле ввода до нечитаемой ширины. */
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .input-row-extra { justify-content: center; }
         .input-field { 
             flex: 1; 
             background: rgba(0, 0, 0, 0.5); 
@@ -548,6 +557,19 @@
             font-size: 20px;
         }
         .btn-site:hover { box-shadow: 0 0 18px rgba(255, 209, 102, 0.4); }
+        /* Кнопка озвучки: 🔊 — включена, 🔇 — выключена. Погашенный вид
+           обязателен, иначе состояние не отличить, не нажав кнопку. */
+        .btn-voice {
+            background: rgba(0, 0, 0, 0.5);
+            color: var(--neon-green);
+            border: 1px solid var(--glass-border);
+            font-size: 20px;
+        }
+        .btn-voice:hover { box-shadow: 0 0 18px rgba(0, 255, 136, 0.4); }
+        .btn-voice.muted {
+            color: var(--muted);
+            opacity: 0.55;
+        }
         .lang-close {
             width: 100%;
             margin-top: 14px;
@@ -645,11 +667,19 @@
                 <div class="chat-top" id="chatTop"></div>
             </div>
             <div class="input-area">
-                <button class="btn btn-mic" id="micBtn" onclick="toggleMic()">🎤</button>
-                <button class="btn btn-task" onclick="location.href='tasks.html'" title="Добавить задание" data-i18n-title="addTaskTitle">📝</button>
-                <button class="btn btn-site" onclick="openSiteModal()" title="Добавить сайт" data-i18n-title="addSiteTitle">🔐</button>
-                <input type="text" class="input-field" id="userInput" placeholder="Сообщение..." data-i18n-ph="messagePlaceholder">
-                <button class="btn btn-send" onclick="sendMessage()">➤</button>
+                <!-- Первый ряд — только главное: микрофон, поле ввода, отправка. -->
+                <div class="input-row">
+                    <button class="btn btn-mic" id="micBtn" onclick="toggleMic()">🎤</button>
+                    <input type="text" class="input-field" id="userInput" placeholder="Сообщение..." data-i18n-ph="messagePlaceholder">
+                    <button class="btn btn-send" onclick="sendMessage()">➤</button>
+                </div>
+                <!-- Второй ряд — дополнительные кнопки. Озвучку ответов
+                     можно выключить: у неё состояние в localStorage. -->
+                <div class="input-row input-row-extra">
+                    <button class="btn btn-task" onclick="location.href='tasks.html'" title="Добавить задание" data-i18n-title="addTaskTitle">📝</button>
+                    <button class="btn btn-site" onclick="openSiteModal()" title="Добавить сайт" data-i18n-title="addSiteTitle">🔐</button>
+                    <button class="btn btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Озвучивать ответы">🔊</button>
+                </div>
             </div>
         </div>
 
@@ -711,6 +741,9 @@
         })();
         let apiKey = localStorage.getItem("lenya_api_key") || "";
         let userName = localStorage.getItem("lenya_user_name") || "";
+        // Озвучка ответов. По умолчанию включена — как было до появления
+        // кнопки; выключенное состояние запоминается между заходами.
+        let voiceEnabled = localStorage.getItem("lenya_voice") !== "off";
 
         // ================= ЯЗЫКИ (i18n) =================
         const LANGS = [
@@ -916,6 +949,22 @@
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], SITE_I18N[code] || SITE_I18N.en));
 
+        // Подписи кнопки озвучки. Отдельным блоком по той же причине, что и
+        // SITE_I18N: правки в десяти языковых секциях выше разъехались бы.
+        const VOICE_I18N = {
+            ru: { voiceOnTitle: "🔊 Озвучка включена — нажми, чтобы выключить", voiceOffTitle: "🔇 Озвучка выключена — нажми, чтобы включить" },
+            en: { voiceOnTitle: "🔊 Voice on — tap to turn off", voiceOffTitle: "🔇 Voice off — tap to turn on" },
+            zh: { voiceOnTitle: "🔊 语音已开启 — 点击关闭", voiceOffTitle: "🔇 语音已关闭 — 点击开启" },
+            es: { voiceOnTitle: "🔊 Voz activada — toca para desactivar", voiceOffTitle: "🔇 Voz desactivada — toca para activar" },
+            hi: { voiceOnTitle: "🔊 आवाज़ चालू — बंद करने के लिए दबाएँ", voiceOffTitle: "🔇 आवाज़ बंद — चालू करने के लिए दबाएँ" },
+            ar: { voiceOnTitle: "🔊 الصوت مفعّل — اضغط للإيقاف", voiceOffTitle: "🔇 الصوت متوقف — اضغط للتشغيل" },
+            fr: { voiceOnTitle: "🔊 Voix activée — appuie pour couper", voiceOffTitle: "🔇 Voix coupée — appuie pour activer" },
+            de: { voiceOnTitle: "🔊 Stimme an — zum Ausschalten tippen", voiceOffTitle: "🔇 Stimme aus — zum Einschalten tippen" },
+            ja: { voiceOnTitle: "🔊 読み上げオン — タップでオフ", voiceOffTitle: "🔇 読み上げオフ — タップでオン" },
+            pt: { voiceOnTitle: "🔊 Voz ligada — toque para desligar", voiceOffTitle: "🔇 Voz desligada — toque para ligar" }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], VOICE_I18N[code] || VOICE_I18N.en));
+
         let LANG = localStorage.getItem("lenya_lang") || "ru";
 
         function t(key) {
@@ -946,6 +995,9 @@
             });
 
             renderLangGrid();
+            // Подпись кнопки озвучки зависит от языка, а иконка и «погашенный»
+            // вид — от самого состояния: обновляем и то, и другое.
+            applyVoiceButton();
         }
 
         function renderLangGrid() {
@@ -1183,12 +1235,37 @@
             }
         }
 
+        // Единая проверка «озвучка разрешена»: speak() вызывается из четырёх
+        // мест (регистрация, ответ на сообщение, /help через ленту заданий),
+        // и раньше каждое из них пришлось бы править отдельно.
+        function voiceLang() {
+            return LANG === "zh" ? "zh-CN" : LANG === "ja" ? "ja-JP" : LANG === "ar" ? "ar-SA" : LANG === "hi" ? "hi-IN" : LANG;
+        }
+
         function speak(text) {
+            if (!voiceEnabled) return;
             try {
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = LANG === "zh" ? "zh-CN" : LANG === "ja" ? "ja-JP" : LANG === "ar" ? "ar-SA" : LANG === "hi" ? "hi-IN" : LANG;
+                utterance.lang = voiceLang();
                 speechSynthesis.speak(utterance);
             } catch (e) {}
+        }
+
+        function applyVoiceButton() {
+            const btn = document.getElementById("voiceBtn");
+            if (!btn) return;
+            btn.textContent = voiceEnabled ? "🔊" : "🔇";
+            btn.title = t(voiceEnabled ? "voiceOnTitle" : "voiceOffTitle");
+            btn.classList.toggle("muted", !voiceEnabled);
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            localStorage.setItem("lenya_voice", voiceEnabled ? "on" : "off");
+            applyVoiceButton();
+            // Выключили во время чтения — обрываем фразу сразу, иначе она
+            // договорит до конца, и кнопка будет выглядеть неработающей.
+            if (!voiceEnabled && window.speechSynthesis) speechSynthesis.cancel();
         }
 
         // ================= САЙТЫ (логины/пароли) =================
