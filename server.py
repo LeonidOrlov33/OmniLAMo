@@ -7,6 +7,8 @@
 # ============================================
 
 import asyncio
+import base64
+import binascii
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -34,8 +36,9 @@ from schemas import (
     AdminRequest, ApiKeyRequest, AskRequest, BrowseRequest, CheatSheetRequest,
     CompleteTaskRequest, DeleteCredentialsRequest, DownloadRequest,
     FetchUrlRequest, HistoryRequest, NewsRequest, RegisterRequest,
-    RememberRequest, SaveCredentialsRequest,
+    RememberRequest, SaveCredentialsRequest, UploadRequest,
 )
+from schemas import MAX_UPLOAD_BYTES
 # Функции и константы движка.
 from tools import (
     add_task, ai_endpoint, ai_summarize, ask_ai, browser_headers,
@@ -55,6 +58,11 @@ from tools import BASE_DIR, WEB_DIR, DOWNLOADS_DIR, SETTINGS
 # Проверка адреса живёт в tools.py: тот же страж используется и внутри самих
 # инструментов (http_get_text, plain_page_text), поэтому одной копии достаточно.
 from tools import _safe_public_url
+
+# Куда складывать файлы, загруженные с устройства. Отдельная папка, а не
+# downloads: там лежит то, что сервер скачал сам по ссылке, и смешивать
+# источники в одном каталоге неудобно при разборе «откуда этот файл».
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 
 
 def _sync_from_tools():
@@ -586,6 +594,62 @@ def download_file(data: DownloadRequest):
     except Exception as e:
         logger.error(f"download_file {data.url}: {e}")
         return {"success": False, "error": f"Не удалось скачать: {e}"}
+
+
+@app.post("/upload_file")
+def upload_file(data: UploadRequest):
+    """Принимает файл с устройства (компьютера или телефона) и кладёт в uploads/.
+
+    Тело — JSON с base64, а не multipart: FastAPI требует для File() пакет
+    python-multipart, которого нет в requirements.txt, и без него сервер падал
+    бы при старте целиком, а не только эта ручка. Цена решения — base64
+    раздувает тело на треть, поэтому размер ограничен (см. MAX_UPLOAD_BYTES).
+    """
+    if not get_user(data.api_key):
+        return {"success": False, "error": "Неверный ключ"}
+    if not rate_limit(f"upload_{data.api_key}", max_requests=20, window_seconds=60):
+        return {"success": False, "error": "Слишком много загрузок — подожди минуту"}
+
+    # Имя чистим тем же правилом, что и у download_file: пользователь присылает
+    # его из браузера, а на выходе получается путь на диске. Без чистки сюда
+    # пролезает "../../server.py" и запись уходит выше папки загрузок.
+    name = os.path.basename(data.filename or "").strip()
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)[:120]
+    if not name or name in (".", ".."):
+        name = "file"
+
+    try:
+        raw = base64.b64decode(data.content_b64, validate=False)
+    except (binascii.Error, ValueError):
+        return {"success": False, "error": "Файл повреждён при передаче"}
+    # Pydantic уже ограничил длину строки, но проверяем и сами байты: base64
+    # декодируется в объёме 3/4 от длины, и без этой проверки лимит по строке
+    # не равен лимиту по файлу.
+    if len(raw) > MAX_UPLOAD_BYTES:
+        limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+        return {"success": False, "error": f"Файл больше {limit_mb} МБ"}
+    if not raw:
+        return {"success": False, "error": "Пустой файл"}
+
+    try:
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        path = os.path.join(UPLOADS_DIR, name)
+        # Одноимённые не перезаписываем — иначе вторая загрузка молча съест первую.
+        base, ext = os.path.splitext(path)
+        n = 1
+        while os.path.exists(path):
+            path = f"{base}_{n}{ext}"
+            n += 1
+        with open(path, "wb") as f:
+            f.write(raw)
+        size = os.path.getsize(path)
+        logger.info(f"Загружен файл: {path} ({size} байт)")
+        return {"success": True,
+                "message": f"✅ Загрузил «{os.path.basename(path)}» ({size} байт)",
+                "path": path, "size": size}
+    except Exception as e:
+        logger.error(f"upload_file {name}: {e}")
+        return {"success": False, "error": f"Не удалось сохранить файл: {e}"}
 
 # -------------------------------------------------
 # АДМИНКА
