@@ -607,6 +607,16 @@
         }
         .btn-cheat:hover { box-shadow: 0 0 18px rgba(126, 231, 135, 0.4); }
 
+        /* Кнопка «Скачать файл». Синяя, чтобы ряд кнопок читался как набор
+           разных действий, а не как одна зелёная группа. */
+        .btn-download {
+            background: rgba(0, 0, 0, 0.5);
+            color: #79c0ff;
+            border: 1px solid var(--glass-border);
+            font-size: 20px;
+        }
+        .btn-download:hover { box-shadow: 0 0 18px rgba(121, 192, 255, 0.4); }
+
         /* Помидор: кольцо прогресса + цифры. Кольцо — SVG, а не
            conic-gradient: в старых WebView градиент рисует пилу. */
         .pomo-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
@@ -788,6 +798,7 @@
                     <button class="btn btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Озвучивать ответы">🔊</button>
                     <button class="btn btn-focus" id="focusBtn" onclick="openPomoModal()" title="Таймер Помидор" data-i18n-title="pomoTitle">🍅</button>
                     <button class="btn btn-cheat" onclick="openCheatModal()" title="Шпаргалка по теме" data-i18n-title="cheatTitle">📄</button>
+                    <button class="btn btn-download" onclick="openDownloadModal()" title="Скачать файл по ссылке" data-i18n-title="dlTitle">📥</button>
                 </div>
             </div>
         </div>
@@ -879,6 +890,21 @@
                 <button class="btn-primary" id="cheatBtn" onclick="makeCheatSheet()" data-i18n="cheatMake">Сделать</button>
                 <div class="cheat-out" id="cheatOut"></div>
                 <button class="lang-close" onclick="closeCheatModal()" data-i18n="close">Закрыть</button>
+            </div>
+        </div>
+
+        <!-- МОДАЛКА ЗАКАЧКИ ФАЙЛА -->
+        <div class="lang-modal" id="downloadModal">
+            <div class="lang-sheet site-sheet">
+                <h3 data-i18n="dlTitle">📥 Скачать файл</h3>
+                <label class="site-label" data-i18n="dlUrl">Ссылка на файл</label>
+                <input type="text" class="site-input" id="downloadUrl" placeholder="https://example.com/file.pdf"
+                       data-i18n-ph="dlPlaceholder" autocomplete="off"
+                       onkeydown="if (event.key === 'Enter') downloadFile()">
+                <button class="btn-primary" id="downloadGo" onclick="downloadFile()" data-i18n="dlGo">Скачать</button>
+                <div class="cheat-out" id="downloadOut"></div>
+                <div class="pomo-hint" data-i18n="dlHint">Файл качает сервер и кладёт в папку downloads рядом с собой — ссылка должна быть прямой, http или https.</div>
+                <button class="lang-close" onclick="closeDownloadModal()" data-i18n="close">Закрыть</button>
             </div>
         </div>
 
@@ -1151,6 +1177,21 @@
             pt: { pomoTitle: "🍅 Pomodoro", pomoWork: "Foco", pomoBreak: "Pausa", pomoStart: "Iniciar", pomoPause: "Pausar", pomoReset: "Reiniciar", pomoDone: "⏰ O tempo acabou!", pomoHint: "25 minutos de foco e 5 de descanso. O timer continua com esta janela fechada — o botão 🍅 brilha.", cheatTitle: "📄 Cola do tema", cheatTopic: "Tema", cheatMake: "Criar", cheatPlaceholder: "Trigonometria", cheatEmpty: "Escreva um tema — por exemplo «trigonometria»", cheatFail: "Não foi possível criar a cola" }
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], TOOLS_I18N[code] || TOOLS_I18N.en));
+
+        // Строки закачки файла — снова отдельным блоком, по той же причине.
+        const DOWNLOAD_I18N = {
+            ru: { dlTitle: "📥 Скачать файл", dlUrl: "Ссылка на файл", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Скачать", dlEmpty: "Вставь ссылку на файл", dlGoing: "Качаю", dlDone: "Готово", dlFail: "Не удалось скачать", dlHint: "Файл качает сервер и кладёт в папку downloads рядом с собой — ссылка должна быть прямой, http или https." },
+            en: { dlTitle: "📥 Download a file", dlUrl: "File link", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Download", dlEmpty: "Paste a file link", dlGoing: "Downloading", dlDone: "Done", dlFail: "Couldn't download", dlHint: "The server fetches the file and saves it into the downloads folder next to itself — the link must be direct, http or https." },
+            zh: { dlTitle: "📥 下载文件", dlUrl: "文件链接", dlPlaceholder: "https://example.com/file.pdf", dlGo: "下载", dlEmpty: "请粘贴文件链接", dlGoing: "正在下载", dlDone: "完成", dlFail: "下载失败", dlHint: "服务器会下载文件并保存到自身旁边的 downloads 文件夹——链接必须是直接的 http 或 https。" },
+            es: { dlTitle: "📥 Descargar archivo", dlUrl: "Enlace del archivo", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Descargar", dlEmpty: "Pega un enlace de archivo", dlGoing: "Descargando", dlDone: "Listo", dlFail: "No se pudo descargar", dlHint: "El servidor descarga el archivo y lo guarda en la carpeta downloads junto a sí mismo: el enlace debe ser directo, http o https." },
+            hi: { dlTitle: "📥 फ़ाइल डाउनलोड करें", dlUrl: "फ़ाइल का लिंक", dlPlaceholder: "https://example.com/file.pdf", dlGo: "डाउनलोड", dlEmpty: "फ़ाइल का लिंक चिपकाएँ", dlGoing: "डाउनलोड हो रहा है", dlDone: "हो गया", dlFail: "डाउनलोड नहीं हो सका", dlHint: "सर्वर फ़ाइल डाउनलोड करके अपने पास की downloads फ़ोल्डर में रखता है — लिंक सीधा, http या https होना चाहिए।" },
+            ar: { dlTitle: "📥 تنزيل ملف", dlUrl: "رابط الملف", dlPlaceholder: "https://example.com/file.pdf", dlGo: "تنزيل", dlEmpty: "الصق رابط الملف", dlGoing: "جارٍ التنزيل", dlDone: "تم", dlFail: "تعذّر التنزيل", dlHint: "ينزّل الخادم الملف ويضعه في مجلد downloads بجانبه — يجب أن يكون الرابط مباشرًا، http أو https." },
+            fr: { dlTitle: "📥 Télécharger un fichier", dlUrl: "Lien du fichier", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Télécharger", dlEmpty: "Colle un lien de fichier", dlGoing: "Téléchargement", dlDone: "Terminé", dlFail: "Impossible de télécharger", dlHint: "Le serveur télécharge le fichier et le range dans le dossier downloads à côté de lui — le lien doit être direct, http ou https." },
+            de: { dlTitle: "📥 Datei herunterladen", dlUrl: "Dateilink", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Herunterladen", dlEmpty: "Füge einen Dateilink ein", dlGoing: "Wird geladen", dlDone: "Fertig", dlFail: "Konnte nicht herunterladen", dlHint: "Der Server lädt die Datei und legt sie im Ordner downloads neben sich ab — der Link muss direkt sein, http oder https." },
+            ja: { dlTitle: "📥 ファイルをダウンロード", dlUrl: "ファイルのリンク", dlPlaceholder: "https://example.com/file.pdf", dlGo: "ダウンロード", dlEmpty: "ファイルのリンクを貼り付けてください", dlGoing: "ダウンロード中", dlDone: "完了", dlFail: "ダウンロードできませんでした", dlHint: "サーバーがファイルを取得し、自身の隣の downloads フォルダーに保存します — リンクは直接の http または https である必要があります。" },
+            pt: { dlTitle: "📥 Baixar arquivo", dlUrl: "Link do arquivo", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Baixar", dlEmpty: "Cole um link de arquivo", dlGoing: "Baixando", dlDone: "Pronto", dlFail: "Não foi possível baixar", dlHint: "O servidor baixa o arquivo e o coloca na pasta downloads ao lado dele — o link precisa ser direto, http ou https." }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], DOWNLOAD_I18N[code] || DOWNLOAD_I18N.en));
 
         let LANG = localStorage.getItem("lenya_lang") || "ru";
 
@@ -1844,6 +1885,50 @@
                 const data = await res.json();
                 out.className = "cheat-out";
                 out.textContent = data.success ? data.answer : (data.error || t("cheatFail"));
+            } catch (e) {
+                out.className = "cheat-out";
+                out.textContent = "❌ " + t("serverDown");
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ================= ЗАКАЧКА ФАЙЛА =================
+        // Тот же /download_file, что и команда «скачай <ссылка>» в чате, но
+        // кнопкой: ссылку удобнее вставить в поле, чем набирать в сообщении.
+        function openDownloadModal() {
+            document.getElementById("downloadModal").classList.add("active");
+            document.getElementById("downloadUrl").focus();
+        }
+
+        function closeDownloadModal() {
+            document.getElementById("downloadModal").classList.remove("active");
+        }
+
+        async function downloadFile() {
+            const input = document.getElementById("downloadUrl");
+            const url = input.value.trim();
+            const out = document.getElementById("downloadOut");
+            if (!url) { out.className = "cheat-out"; out.textContent = t("dlEmpty"); return; }
+
+            const btn = document.getElementById("downloadGo");
+            btn.disabled = true;
+            out.className = "cheat-out loading";
+            out.textContent = t("dlGoing") + "...";
+            try {
+                const res = await fetch(`${SERVER}/download_file`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: apiKey, url: url })
+                });
+                const data = await res.json();
+                out.className = "cheat-out";
+                if (data.success) {
+                    out.textContent = data.message || t("dlDone");
+                    input.value = "";
+                } else {
+                    out.textContent = "❌ " + (data.error || t("dlFail"));
+                }
             } catch (e) {
                 out.className = "cheat-out";
                 out.textContent = "❌ " + t("serverDown");
