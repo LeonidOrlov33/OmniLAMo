@@ -37,6 +37,10 @@ from supabase import create_client, Client
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = BASE_DIR
 DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
+# Файлы, загруженные пользователем с устройства (ручка /upload_file в server.py).
+# Отдельно от downloads/: там лежит то, что сервер скачал сам по ссылке, и
+# смешивать источники в одном каталоге неудобно при разборе «откуда этот файл».
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 
 # Потолок на скачиваемый файл. Без него ссылка на многогигабайтный образ
 # забивала диск бесплатного Render (там всего 512 МБ) и роняла сервис.
@@ -2791,7 +2795,99 @@ AI_TOOLS = [
             "text": {"type": "string", "description": "О чём напомнить"},
             "when": {"type": "string", "description": "Когда, например «19:30» или «16.09.2026 08:00»"}},
             "required": ["text", "when"]}}},
+    {"type": "function", "function": {
+        "name": "read_uploaded_file",
+        "description": "Прочитать файл, который пользователь загрузил с устройства (лабораторную работу, текст задачи, конспект). Работает с текстовыми файлами: txt, md, csv, json, py и подобными.",
+        "parameters": {"type": "object", "properties": {
+            "filename": {"type": "string", "description": "Имя файла из списка загруженных, например «лаба.txt»"}},
+            "required": ["filename"]}}},
 ]
+
+
+# -------------------------------------------------
+# ФАЙЛЫ, ЗАГРУЖЕННЫЕ С УСТРОЙСТВА
+# -------------------------------------------------
+# Ручка /upload_file в server.py кладёт файл в uploads/ и на этом заканчивалась:
+# нейросеть про него не знала и на «прочитай лабораторную» отвечала «пришли
+# текст». Здесь эта связь: список файлов уходит в системный промпт, а читает
+# файл инструмент read_uploaded_file — по требованию, а не сразу. Целиком
+# подмешивать содержимое в промпт нельзя: 10 МБ текста вытеснят и историю
+# диалога, и сам вопрос.
+
+# Что считаем текстом. Расширение — не гарантия (в .txt лежит что угодно), но
+# оно отсекает заведомо двоичное: у PDF и .docx после decode() получается мусор
+# из непечатаемых символов, который только забивает контекст.
+TEXT_UPLOAD_EXTS = (
+    ".txt", ".md", ".markdown", ".rst", ".tex", ".log", ".csv", ".tsv",
+    ".json", ".yaml", ".yml", ".ini", ".cfg", ".conf", ".env",
+    ".py", ".js", ".ts", ".html", ".htm", ".css", ".xml", ".sql", ".sh",
+)
+# Сколько символов файла отдаём модели. Лабораторная целиком не нужна: ответ
+# всё равно ограничен max_tokens, а лишний текст вытесняет историю диалога.
+MAX_UPLOAD_READ_CHARS = 20000
+
+
+def uploaded_files():
+    """Имена файлов в uploads/ — свежие первыми."""
+    try:
+        names = [n for n in os.listdir(UPLOADS_DIR)
+                 if os.path.isfile(os.path.join(UPLOADS_DIR, n))]
+    except OSError:
+        return []
+    names.sort(key=lambda n: os.path.getmtime(os.path.join(UPLOADS_DIR, n)),
+               reverse=True)
+    return names
+
+
+def uploaded_files_hint(limit: int = 5) -> str:
+    """Подсказка в системный промпт: какие файлы пользователь уже загрузил.
+
+    Без неё модель отвечает «пришли текст задачи», хотя текст уже лежит в
+    uploads/ — та же история, что была с сохранёнными сайтами, пока их список
+    не начали подмешивать в промпт.
+    """
+    names = uploaded_files()
+    if not names:
+        return ""
+    shown = names[:limit]
+    listing = ", ".join(f"«{n}»" for n in shown)
+    more = f" (и ещё {len(names) - len(shown)})" if len(names) > len(shown) else ""
+    return (f"Пользователь загрузил с устройства файлы: {listing}{more}.\n"
+            "Если вопрос про такой файл, не проси прислать текст — прочитай его "
+            "инструментом read_uploaded_file и отвечай по содержимому.")
+
+
+def _tool_read_upload(filename: str) -> str:
+    """Читает загруженный файл как текст или объясняет, почему не вышло."""
+    name = os.path.basename(str(filename or "").strip())
+    if not name:
+        return "Не указано имя файла"
+    # basename уже отрезал «../», но проверяем и результат: символические
+    # ссылки и хитрые имена обходят наивную чистку. Читаем только то, что
+    # реально лежит в uploads/.
+    real_dir = os.path.realpath(UPLOADS_DIR)
+    real_path = os.path.realpath(os.path.join(UPLOADS_DIR, name))
+    if os.path.dirname(real_path) != real_dir or not os.path.isfile(real_path):
+        return f"Файл «{name}» не найден. Загрузи его кнопкой 📎."
+    ext = os.path.splitext(name)[1].lower()
+    if ext not in TEXT_UPLOAD_EXTS:
+        listed = ", ".join(sorted(TEXT_UPLOAD_EXTS))
+        return (f"«{name}» — не текстовый файл, прочитать не смогу. "
+                f"Читаю только: {listed}")
+    try:
+        with open(real_path, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read(MAX_UPLOAD_READ_CHARS + 1)
+    except OSError as e:
+        logger.error(f"read_uploaded_file {name}: {e}")
+        return f"Не удалось прочитать «{name}»: {e}"
+    if not text.strip():
+        return f"«{name}» пустой"
+    cut = len(text) > MAX_UPLOAD_READ_CHARS
+    if cut:
+        text = text[:MAX_UPLOAD_READ_CHARS]
+    tail = (f"\n\n…(файл длиннее {MAX_UPLOAD_READ_CHARS} символов, "
+            "показано начало)") if cut else ""
+    return f"Содержимое «{name}»:\n\n{text}{tail}"
 
 
 def _tool_download(url: str) -> str:
@@ -2912,6 +3008,9 @@ def run_ai_tool(name: str, args: dict, api_key: str = "") -> str:
         if name == "set_reminder":
             return set_reminder(api_key, str(args.get("text") or ""),
                                 str(args.get("when") or ""))
+
+        if name == "read_uploaded_file":
+            return _tool_read_upload(str(args.get("filename") or ""))
     except Exception as e:
         logger.error(f"Инструмент {name}: {e}")
         return f"Ошибка инструмента {name}: {e}"
@@ -2982,6 +3081,11 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
         hint = saved_sites_hint(api_key)
         if hint:
             system_prompt = f"{system_prompt}\n\n{hint}\nЕсли пользователь просит войти на такой сайт, ответь, что можешь это сделать, и попроси написать «войди в <название>»."
+        # То же и для файлов с устройства: пока список не подмешан, модель на
+        # вопрос о загруженной лабораторной отвечает «пришли текст».
+        files_hint = uploaded_files_hint()
+        if files_hint:
+            system_prompt = f"{system_prompt}\n\n{files_hint}"
 
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     # Для задания берём другую инструкцию: модель должна выполнить поручение,
