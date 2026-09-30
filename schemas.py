@@ -115,6 +115,13 @@ class NewsRequest(BaseModel):
     limit: int = 8
 
 
+class CheatSheetRequest(BaseModel):
+    """Тема для «шпоры». Отдельная модель, а не AskRequest: здесь text —
+    не реплика в чате, а название темы, и в историю диалога она не пишется."""
+    api_key: str = API_KEY_FIELD
+    topic: str = Field(..., min_length=1, max_length=300)
+
+
 # Админские ручки. Раньше эта модель была объявлена прямо в server.py —
 # единственная из тринадцати, оставшаяся в веб-слое: остальные уже переехали
 # сюда. Из-за этого server.py продолжал импортировать BaseModel из pydantic
