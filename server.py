@@ -31,15 +31,16 @@ from bs4 import BeautifulSoup
 
 # Транспортные модели запросов живут в отдельном модуле schemas.py.
 from schemas import (
-    AdminRequest, ApiKeyRequest, AskRequest, BrowseRequest, CompleteTaskRequest,
-    DeleteCredentialsRequest, DownloadRequest, FetchUrlRequest, HistoryRequest,
-    NewsRequest, RegisterRequest, RememberRequest, SaveCredentialsRequest,
+    AdminRequest, ApiKeyRequest, AskRequest, BrowseRequest, CheatSheetRequest,
+    CompleteTaskRequest, DeleteCredentialsRequest, DownloadRequest,
+    FetchUrlRequest, HistoryRequest, NewsRequest, RegisterRequest,
+    RememberRequest, SaveCredentialsRequest,
 )
 # Функции и константы движка.
 from tools import (
     add_task, ai_endpoint, ai_summarize, ask_ai, browser_headers,
-    chat_log_page, clean_old_messages, clear_history, cloud_ready, collect_news,
-    complete_task, connect_services, create_user, delete_credentials,
+    chat_log_page, cheat_sheet, clean_old_messages, clear_history, cloud_ready,
+    collect_news, complete_task, connect_services, create_user, delete_credentials,
     dequeue_messages, detect_command, enqueue_message, execute_command,
     format_news, get_tasks, get_user, list_credentials,
     load_settings_from_cloud, log_chat, logger, normalize_site, open_as_user,
@@ -221,12 +222,9 @@ app.add_middleware(
 # ЭНДПОИНТЫ
 # -------------------------------------------------
 
-
 @app.get("/")
 def home():
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/index.html")
-
+    return {"status": "ok", "version": "free-beta"}
 
 
 # Отдельный пул потоков только для проверки живости. Синхронные обработчики
@@ -518,6 +516,27 @@ def news(data: NewsRequest):
     logger.info(f"Новости: {source}, {len(titles)} заголовков")
     return {"success": True, "answer": answer, "source": source,
             "titles": titles, "summary": summary}
+
+
+@app.post("/cheatsheet")
+def cheatsheet(data: CheatSheetRequest):
+    """Шпаргалка по теме: формулы и ключевые тезисы, без «воды».
+
+    Отдельная ручка, а не /ask: тема шпаргалки — не реплика диалога, поэтому
+    в историю чата она не пишется и контекст предыдущей переписки на неё не
+    влияет (см. комментарий у cheat_sheet в tools.py). Лимит тот же, что у
+    /ask: запрос всё равно уходит к нейросети и стоит денег.
+    """
+    if not get_user(data.api_key):
+        return {"success": False, "error": "Неверный ключ"}
+    if not rate_limit(f"cheat_{data.api_key}", max_requests=10, window_seconds=60):
+        return {"success": False, "error": "Слишком много запросов — подожди минуту"}
+    topic = (data.topic or "").strip()
+    if not topic:
+        return {"success": False, "error": "Напиши тему"}
+    answer = cheat_sheet(topic)
+    logger.info(f"Шпаргалка: {topic[:60]}")
+    return {"success": True, "answer": answer, "topic": topic}
 
 
 @app.post("/download_file")
