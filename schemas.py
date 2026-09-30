@@ -32,6 +32,13 @@ def is_valid_name(name: str) -> bool:
 # запас до 128 оставляем на случай смены формата ключей.
 API_KEY_FIELD = Field(..., min_length=30, max_length=128)
 
+# Загрузка файла с устройства. Лимит один на весь проект: клиент сверяет
+# размер файла с MAX_UPLOAD_BYTES до отправки, сервер — после раскодирования,
+# а Pydantic — по длине base64-строки. Без серверной проверки Pydantic
+# пропустил бы строку на гигабайт и она осела бы в памяти процесса.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024               # 10 МБ — сам файл
+MAX_UPLOAD_B64 = (MAX_UPLOAD_BYTES // 3 + 1) * 4  # столько же в base64
+
 
 # -------------------------------------------------
 # МОДЕЛИ ЗАПРОСОВ
@@ -107,6 +114,20 @@ class BrowseRequest(BaseModel):
 class DownloadRequest(BaseModel):
     api_key: str = API_KEY_FIELD
     url: str
+
+
+class UploadRequest(BaseModel):
+    """Файл с устройства (компьютера или телефона) в base64.
+
+    Отдельная модель, а не multipart-загрузка: FastAPI требует для File()
+    пакет python-multipart, которого нет в requirements.txt. Без него сервер
+    падал бы при старте — причём не только эта ручка, а весь целиком
+    (FastAPI проверяет наличие пакета в момент регистрации маршрута).
+    base64 в JSON обходится без новой зависимости.
+    """
+    api_key: str = API_KEY_FIELD
+    filename: str = Field(..., min_length=1, max_length=255)
+    content_b64: str = Field(..., min_length=1, max_length=MAX_UPLOAD_B64)
 
 
 class NewsRequest(BaseModel):
