@@ -617,6 +617,17 @@
         }
         .btn-download:hover { box-shadow: 0 0 18px rgba(121, 192, 255, 0.4); }
 
+        /* Кнопка «Загрузить с устройства». Фиолетовая — третий цвет в ряду,
+           чтобы 📥 (скачать по ссылке) и 📎 (загрузить файл) не сливались. */
+        .btn-upload {
+            background: rgba(0, 0, 0, 0.5);
+            color: #d2a8ff;
+            border: 1px solid var(--glass-border);
+            font-size: 20px;
+        }
+        .btn-upload:hover { box-shadow: 0 0 18px rgba(210, 168, 255, 0.4); }
+        .btn-upload.busy { opacity: 0.5; pointer-events: none; }
+
         /* Помидор: кольцо прогресса + цифры. Кольцо — SVG, а не
            conic-gradient: в старых WebView градиент рисует пилу. */
         .pomo-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
@@ -799,6 +810,8 @@
                     <button class="btn btn-focus" id="focusBtn" onclick="openPomoModal()" title="Таймер Помидор" data-i18n-title="pomoTitle">🍅</button>
                     <button class="btn btn-cheat" onclick="openCheatModal()" title="Шпаргалка по теме" data-i18n-title="cheatTitle">📄</button>
                     <button class="btn btn-download" onclick="openDownloadModal()" title="Скачать файл по ссылке" data-i18n-title="dlTitle">📥</button>
+                    <button class="btn btn-upload" id="uploadBtn" onclick="pickFile()" title="Загрузить файл с устройства" data-i18n-title="upTitle">📎</button>
+                    <input type="file" id="fileInput" hidden onchange="onFilePicked()">
                 </div>
             </div>
         </div>
@@ -1192,6 +1205,23 @@
             pt: { dlTitle: "📥 Baixar arquivo", dlUrl: "Link do arquivo", dlPlaceholder: "https://example.com/file.pdf", dlGo: "Baixar", dlEmpty: "Cole um link de arquivo", dlGoing: "Baixando", dlDone: "Pronto", dlFail: "Não foi possível baixar", dlHint: "O servidor baixa o arquivo e o coloca na pasta downloads ao lado dele — o link precisa ser direto, http ou https." }
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], DOWNLOAD_I18N[code] || DOWNLOAD_I18N.en));
+
+        // Строки загрузки файла с устройства. Тот же приём, что и выше: отдельный
+        // блок, чтобы десять длинных строк языков не разрастались ещё больше.
+        // upMb — единица измерения («МБ»), подставляется рядом с числом.
+        const UPLOAD_I18N = {
+            ru: { upTitle: "📎 Загрузить файл с устройства", upGoing: "Загружаю", upTooBig: "Файл больше", upMb: "МБ", upReadFail: "Не удалось прочитать файл", upDone: "Загружено", upFail: "Не удалось загрузить" },
+            en: { upTitle: "📎 Upload a file from your device", upGoing: "Uploading", upTooBig: "File is larger than", upMb: "MB", upReadFail: "Couldn't read the file", upDone: "Uploaded", upFail: "Couldn't upload" },
+            zh: { upTitle: "📎 从设备上传文件", upGoing: "正在上传", upTooBig: "文件大于", upMb: "MB", upReadFail: "无法读取文件", upDone: "已上传", upFail: "上传失败" },
+            es: { upTitle: "📎 Subir un archivo desde tu dispositivo", upGoing: "Subiendo", upTooBig: "El archivo supera", upMb: "MB", upReadFail: "No se pudo leer el archivo", upDone: "Subido", upFail: "No se pudo subir" },
+            hi: { upTitle: "📎 डिवाइस से फ़ाइल अपलोड करें", upGoing: "अपलोड हो रहा है", upTooBig: "फ़ाइल इससे बड़ी है", upMb: "MB", upReadFail: "फ़ाइल पढ़ी नहीं जा सकी", upDone: "अपलोड हो गया", upFail: "अपलोड नहीं हो सका" },
+            ar: { upTitle: "📎 رفع ملف من جهازك", upGoing: "جارٍ الرفع", upTooBig: "الملف أكبر من", upMb: "ميغابايت", upReadFail: "تعذّرت قراءة الملف", upDone: "تم الرفع", upFail: "تعذّر الرفع" },
+            fr: { upTitle: "📎 Envoyer un fichier depuis ton appareil", upGoing: "Envoi", upTooBig: "Le fichier dépasse", upMb: "Mo", upReadFail: "Impossible de lire le fichier", upDone: "Envoyé", upFail: "Impossible d'envoyer" },
+            de: { upTitle: "📎 Datei vom Gerät hochladen", upGoing: "Wird hochgeladen", upTooBig: "Datei ist größer als", upMb: "MB", upReadFail: "Datei konnte nicht gelesen werden", upDone: "Hochgeladen", upFail: "Konnte nicht hochladen" },
+            ja: { upTitle: "📎 デバイスからファイルをアップロード", upGoing: "アップロード中", upTooBig: "ファイルが次より大きい", upMb: "MB", upReadFail: "ファイルを読み込めませんでした", upDone: "アップロードしました", upFail: "アップロードできませんでした" },
+            pt: { upTitle: "📎 Enviar arquivo do dispositivo", upGoing: "Enviando", upTooBig: "O arquivo é maior que", upMb: "MB", upReadFail: "Não foi possível ler o arquivo", upDone: "Enviado", upFail: "Não foi possível enviar" }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], UPLOAD_I18N[code] || UPLOAD_I18N.en));
 
         let LANG = localStorage.getItem("lenya_lang") || "ru";
 
@@ -1934,6 +1964,74 @@
                 out.textContent = "❌ " + t("serverDown");
             } finally {
                 btn.disabled = false;
+            }
+        }
+
+        // ================= ЗАГРУЗКА ФАЙЛА С УСТРОЙСТВА =================
+        // Лимит тот же, что в schemas.MAX_UPLOAD_BYTES на сервере. Держим его
+        // и здесь, чтобы браузер не собирал base64-строку на 20 МБ ради отказа.
+        const MAX_UPLOAD_MB = 10;
+
+        function pickFile() {
+            document.getElementById("fileInput").click();
+        }
+
+        function onFilePicked() {
+            const input = document.getElementById("fileInput");
+            const file = input.files && input.files[0];
+            // Сбрасываем сразу: иначе выбор того же файла второй раз не вызовет
+            // change, и кнопка будет выглядеть сломанной.
+            input.value = "";
+            if (!file) return;
+
+            if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+                addMsg(`❌ ${t("upTooBig")} ${MAX_UPLOAD_MB} ${t("upMb")}`, "bot");
+                return;
+            }
+
+            const btn = document.getElementById("uploadBtn");
+            btn.classList.add("busy");
+            addMsg(`📎 ${t("upGoing")}: ${file.name}`, "user");
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                // readAsDataURL даёт "data:<mime>;base64,<данные>" — серверу
+                // нужна только часть после запятой.
+                const comma = String(reader.result).indexOf(",");
+                const b64 = comma >= 0 ? String(reader.result).slice(comma + 1) : "";
+                uploadFile(file.name, b64);
+            };
+            reader.onerror = () => {
+                btn.classList.remove("busy");
+                addMsg("❌ " + t("upReadFail"), "bot");
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadFile(name, contentB64) {
+            const btn = document.getElementById("uploadBtn");
+            try {
+                const res = await fetch(`${SERVER}/upload_file`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        api_key: apiKey,
+                        filename: name,
+                        content_b64: contentB64
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const msg = data.message || t("upDone");
+                    addMsg(msg, "bot");
+                    speak(msg);
+                } else {
+                    addMsg("❌ " + (data.error || t("upFail")), "bot");
+                }
+            } catch (e) {
+                addMsg("❌ " + t("serverDown"), "bot");
+            } finally {
+                btn.classList.remove("busy");
             }
         }
 
