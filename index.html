@@ -583,6 +583,113 @@
             cursor: pointer;
         }
 
+        /* Кнопка «Помидор» (таймер). Красная — потому что помидор, а не потому
+           что ошибка; пульсирует, пока таймер идёт, — так видно, что отсчёт
+           продолжается даже с закрытой модалкой. */
+        .btn-focus {
+            background: rgba(0, 0, 0, 0.5);
+            color: #ff6b6b;
+            border: 1px solid var(--glass-border);
+            font-size: 20px;
+        }
+        .btn-focus:hover { box-shadow: 0 0 18px rgba(255, 107, 107, 0.4); }
+        .btn-focus.running {
+            color: var(--neon-red);
+            animation: micPulse 2s infinite;
+        }
+
+        /* Кнопка «Шпаргалка». */
+        .btn-cheat {
+            background: rgba(0, 0, 0, 0.5);
+            color: #7ee787;
+            border: 1px solid var(--glass-border);
+            font-size: 20px;
+        }
+        .btn-cheat:hover { box-shadow: 0 0 18px rgba(126, 231, 135, 0.4); }
+
+        /* Помидор: кольцо прогресса + цифры. Кольцо — SVG, а не
+           conic-gradient: в старых WebView градиент рисует пилу. */
+        .pomo-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+        .pomo-ring { position: relative; width: 190px; height: 190px; }
+        .pomo-ring svg { transform: rotate(-90deg); }
+        .pomo-ring circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+        .pomo-track { stroke: rgba(255, 255, 255, 0.08); }
+        .pomo-bar {
+            stroke: var(--neon-red);
+            transition: stroke-dashoffset 0.3s linear, stroke 0.3s;
+        }
+        .pomo-bar.break { stroke: var(--neon-green); }
+        .pomo-time {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 1px;
+        }
+        .pomo-phase {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .pomo-modes { display: flex; gap: 8px; width: 100%; }
+        .pomo-mode {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 10px 4px;
+            color: var(--muted);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .pomo-mode.active {
+            color: #fff;
+            border-color: var(--neon-red);
+            background: rgba(255, 0, 68, 0.12);
+        }
+        .pomo-btns { display: flex; gap: 10px; width: 100%; }
+        .pomo-btns .btn-primary { flex: 1; }
+        .pomo-hint {
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        /* Шпаргалка: результат — моноширинным, чтобы формулы не разъезжались
+           по строкам при переносе. */
+        .cheat-sheet { max-width: 520px; }
+        .cheat-out {
+            margin-top: 14px;
+            padding: 14px;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 45vh;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .cheat-out:empty { display: none; }
+        .cheat-out.loading {
+            color: var(--muted);
+            font-family: inherit;
+            text-align: center;
+        }
+
         /* МЕНЮ */
         .overlay { 
             position: absolute; 
@@ -679,6 +786,8 @@
                     <button class="btn btn-task" onclick="location.href='tasks.html'" title="Добавить задание" data-i18n-title="addTaskTitle">📝</button>
                     <button class="btn btn-site" onclick="openSiteModal()" title="Добавить сайт" data-i18n-title="addSiteTitle">🔐</button>
                     <button class="btn btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Озвучивать ответы">🔊</button>
+                    <button class="btn btn-focus" id="focusBtn" onclick="openPomoModal()" title="Таймер Помидор" data-i18n-title="pomoTitle">🍅</button>
+                    <button class="btn btn-cheat" onclick="openCheatModal()" title="Шпаргалка по теме" data-i18n-title="cheatTitle">📄</button>
                 </div>
             </div>
         </div>
@@ -726,6 +835,50 @@
 
                 <div class="site-list-title" data-i18n="siteListTitle">📋 Сохранённые сайты</div>
                 <div class="site-list" id="siteList"></div>
+            </div>
+        </div>
+
+        <!-- МОДАЛКА ТАЙМЕРА «ПОМИДОР» -->
+        <div class="lang-modal" id="pomoModal">
+            <div class="lang-sheet site-sheet">
+                <h3 data-i18n="pomoTitle">🍅 Помидор</h3>
+                <div class="pomo-wrap">
+                    <div class="pomo-ring">
+                        <svg width="190" height="190" viewBox="0 0 190 190">
+                            <circle class="pomo-track" cx="95" cy="95" r="85"></circle>
+                            <circle class="pomo-bar" id="pomoBar" cx="95" cy="95" r="85"></circle>
+                        </svg>
+                        <div class="pomo-time">
+                            <span id="pomoTime">25:00</span>
+                            <span class="pomo-phase" id="pomoPhase" data-i18n="pomoWork">Работа</span>
+                        </div>
+                    </div>
+                    <div class="pomo-modes">
+                        <button class="pomo-mode active" data-min="25" onclick="setPomoMode(this)">25</button>
+                        <button class="pomo-mode" data-min="15" onclick="setPomoMode(this)">15</button>
+                        <button class="pomo-mode" data-min="5" onclick="setPomoMode(this)">5</button>
+                    </div>
+                    <div class="pomo-btns">
+                        <button class="btn-primary" id="pomoToggle" onclick="togglePomo()" data-i18n="pomoStart">Старт</button>
+                        <button class="btn-primary" onclick="resetPomo()" data-i18n="pomoReset">Сброс</button>
+                    </div>
+                    <div class="pomo-hint" data-i18n="pomoHint">Работа 25 минут, перерыв 5. Таймер идёт даже при закрытом окне — кнопка 🍅 подсвечивается.</div>
+                </div>
+                <button class="lang-close" onclick="closePomoModal()" data-i18n="close">Закрыть</button>
+            </div>
+        </div>
+
+        <!-- МОДАЛКА ШПАРГАЛКИ -->
+        <div class="lang-modal" id="cheatModal">
+            <div class="lang-sheet site-sheet cheat-sheet">
+                <h3 data-i18n="cheatTitle">📄 Шпаргалка по теме</h3>
+                <label class="site-label" data-i18n="cheatTopic">Тема</label>
+                <input type="text" class="site-input" id="cheatTopicInput" placeholder="Тригонометрия"
+                       data-i18n-ph="cheatPlaceholder" autocomplete="off"
+                       onkeydown="if (event.key === 'Enter') makeCheatSheet()">
+                <button class="btn-primary" id="cheatBtn" onclick="makeCheatSheet()" data-i18n="cheatMake">Сделать</button>
+                <div class="cheat-out" id="cheatOut"></div>
+                <button class="lang-close" onclick="closeCheatModal()" data-i18n="close">Закрыть</button>
             </div>
         </div>
 
@@ -981,6 +1134,23 @@
             pt: { voiceIdle: "Entrada de voz", voiceListening: "Gravando — toque para parar" }
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], MIC_I18N[code] || MIC_I18N.en));
+
+        // Строки таймера «Помидор» и шпаргалки. Отдельным блоком по той же
+        // причине, что SITE_I18N, VOICE_I18N и MIC_I18N выше: правки в десяти
+        // языковых секциях разъехались бы.
+        const TOOLS_I18N = {
+            ru: { pomoTitle: "🍅 Помидор", pomoWork: "Работа", pomoBreak: "Перерыв", pomoStart: "Старт", pomoPause: "Пауза", pomoReset: "Сброс", pomoDone: "⏰ Время вышло!", pomoHint: "Работа 25 минут, перерыв 5. Таймер идёт даже при закрытом окне — кнопка 🍅 подсвечивается.", cheatTitle: "📄 Шпаргалка по теме", cheatTopic: "Тема", cheatMake: "Сделать", cheatPlaceholder: "Тригонометрия", cheatEmpty: "Напиши тему — например «тригонометрия»", cheatFail: "Не получилось собрать шпаргалку" },
+            en: { pomoTitle: "🍅 Pomodoro", pomoWork: "Focus", pomoBreak: "Break", pomoStart: "Start", pomoPause: "Pause", pomoReset: "Reset", pomoDone: "⏰ Time's up!", pomoHint: "25 minutes of focus, 5 of rest. The timer keeps running with this window closed — the 🍅 button glows.", cheatTitle: "📄 Topic cheat sheet", cheatTopic: "Topic", cheatMake: "Make it", cheatPlaceholder: "Trigonometry", cheatEmpty: "Type a topic — for example “trigonometry”", cheatFail: "Couldn't build the cheat sheet" },
+            zh: { pomoTitle: "🍅 番茄钟", pomoWork: "专注", pomoBreak: "休息", pomoStart: "开始", pomoPause: "暂停", pomoReset: "重置", pomoDone: "⏰ 时间到！", pomoHint: "专注 25 分钟，休息 5 分钟。关闭此窗口计时仍在继续——🍅 按钮会发光。", cheatTitle: "📄 主题速记卡", cheatTopic: "主题", cheatMake: "生成", cheatPlaceholder: "三角函数", cheatEmpty: "请输入主题——例如“三角函数”", cheatFail: "无法生成速记卡" },
+            es: { pomoTitle: "🍅 Pomodoro", pomoWork: "Enfoque", pomoBreak: "Descanso", pomoStart: "Empezar", pomoPause: "Pausa", pomoReset: "Reiniciar", pomoDone: "⏰ ¡Se acabó el tiempo!", pomoHint: "25 minutos de concentración y 5 de descanso. El temporizador sigue con esta ventana cerrada: el botón 🍅 brilla.", cheatTitle: "📄 Chuleta del tema", cheatTopic: "Tema", cheatMake: "Crear", cheatPlaceholder: "Trigonometría", cheatEmpty: "Escribe un tema, por ejemplo «trigonometría»", cheatFail: "No se pudo crear la chuleta" },
+            hi: { pomoTitle: "🍅 पोमोडोरो", pomoWork: "फोकस", pomoBreak: "ब्रेक", pomoStart: "शुरू", pomoPause: "रोकें", pomoReset: "रीसेट", pomoDone: "⏰ समय पूरा!", pomoHint: "25 मिनट फोकस, 5 मिनट आराम। यह विंडो बंद होने पर भी टाइमर चलता रहता है — 🍅 बटन चमकता है।", cheatTitle: "📄 विषय की चीट शीट", cheatTopic: "विषय", cheatMake: "बनाएँ", cheatPlaceholder: "त्रिकोणमिति", cheatEmpty: "विषय लिखें — जैसे “त्रिकोणमिति”", cheatFail: "चीट शीट नहीं बन सकी" },
+            ar: { pomoTitle: "🍅 بومودورو", pomoWork: "تركيز", pomoBreak: "استراحة", pomoStart: "ابدأ", pomoPause: "إيقاف مؤقت", pomoReset: "إعادة", pomoDone: "⏰ انتهى الوقت!", pomoHint: "٢٥ دقيقة تركيز و٥ راحة. يستمر المؤقت حتى مع إغلاق هذه النافذة — يضيء زر 🍅.", cheatTitle: "📄 ورقة مراجعة للموضوع", cheatTopic: "الموضوع", cheatMake: "أنشئ", cheatPlaceholder: "حساب المثلثات", cheatEmpty: "اكتب موضوعًا — مثل «حساب المثلثات»", cheatFail: "لم يتم إنشاء ورقة المراجعة" },
+            fr: { pomoTitle: "🍅 Pomodoro", pomoWork: "Concentration", pomoBreak: "Pause", pomoStart: "Démarrer", pomoPause: "Pause", pomoReset: "Réinitialiser", pomoDone: "⏰ Temps écoulé !", pomoHint: "25 minutes de concentration, 5 de repos. Le minuteur continue même fenêtre fermée — le bouton 🍅 s'illumine.", cheatTitle: "📄 Fiche de révision", cheatTopic: "Sujet", cheatMake: "Créer", cheatPlaceholder: "Trigonométrie", cheatEmpty: "Écris un sujet — par exemple « trigonométrie »", cheatFail: "Impossible de créer la fiche" },
+            de: { pomoTitle: "🍅 Pomodoro", pomoWork: "Fokus", pomoBreak: "Pause", pomoStart: "Start", pomoPause: "Pause", pomoReset: "Zurücksetzen", pomoDone: "⏰ Zeit ist um!", pomoHint: "25 Minuten Fokus, 5 Pause. Der Timer läuft auch bei geschlossenem Fenster weiter — der 🍅-Knopf leuchtet.", cheatTitle: "📄 Spickzettel zum Thema", cheatTopic: "Thema", cheatMake: "Erstellen", cheatPlaceholder: "Trigonometrie", cheatEmpty: "Gib ein Thema ein — zum Beispiel „Trigonometrie“", cheatFail: "Spickzettel konnte nicht erstellt werden" },
+            ja: { pomoTitle: "🍅 ポモドーロ", pomoWork: "集中", pomoBreak: "休憩", pomoStart: "開始", pomoPause: "一時停止", pomoReset: "リセット", pomoDone: "⏰ 時間です！", pomoHint: "25分集中して5分休憩。このウィンドウを閉じてもタイマーは動き続け、🍅 ボタンが光ります。", cheatTitle: "📄 トピックのカンニングペーパー", cheatTopic: "トピック", cheatMake: "作成", cheatPlaceholder: "三角関数", cheatEmpty: "トピックを入力してください — 例：「三角関数」", cheatFail: "カンニングペーパーを作成できませんでした" },
+            pt: { pomoTitle: "🍅 Pomodoro", pomoWork: "Foco", pomoBreak: "Pausa", pomoStart: "Iniciar", pomoPause: "Pausar", pomoReset: "Reiniciar", pomoDone: "⏰ O tempo acabou!", pomoHint: "25 minutos de foco e 5 de descanso. O timer continua com esta janela fechada — o botão 🍅 brilha.", cheatTitle: "📄 Cola do tema", cheatTopic: "Tema", cheatMake: "Criar", cheatPlaceholder: "Trigonometria", cheatEmpty: "Escreva um tema — por exemplo «trigonometria»", cheatFail: "Não foi possível criar a cola" }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], TOOLS_I18N[code] || TOOLS_I18N.en));
 
         let LANG = localStorage.getItem("lenya_lang") || "ru";
 
@@ -1537,6 +1707,148 @@
                 else alert(data.error || t("error"));
             } catch (e) {
                 alert(t("serverDown"));
+            }
+        }
+
+        // ================= ТАЙМЕР «ПОМИДОР» =================
+        // Отсчёт живёт в переменных модуля, а не в DOM: таймер обязан идти и
+        // когда модалка закрыта. Кнопка 🍅 в панели при этом пульсирует.
+        const POMO_CIRCLE = 2 * Math.PI * 85;  // r=85, как в разметке
+        let pomoTotal = 25 * 60;   // сколько всего секунд в выбранном режиме
+        let pomoLeft = 25 * 60;    // сколько осталось
+        let pomoRunning = false;
+        let pomoId = null;
+
+        function openPomoModal() {
+            document.getElementById("pomoModal").classList.add("active");
+            renderPomo();
+        }
+
+        function closePomoModal() {
+            document.getElementById("pomoModal").classList.remove("active");
+        }
+
+        // Переключение длительности. 25 и 15 — работа, 5 — перерыв; от этого
+        // зависит и подпись, и цвет кольца.
+        function setPomoMode(btn) {
+            document.querySelectorAll(".pomo-mode").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            stopPomo();
+            pomoTotal = pomoLeft = parseInt(btn.dataset.min, 10) * 60;
+            renderPomo();
+        }
+
+        function isPomoBreak() {
+            return pomoTotal <= 5 * 60;
+        }
+
+        function togglePomo() {
+            if (pomoRunning) stopPomo();
+            else startPomo();
+            renderPomo();
+        }
+
+        function startPomo() {
+            if (pomoRunning) return;
+            if (pomoLeft <= 0) pomoLeft = pomoTotal;
+            pomoRunning = true;
+            pomoId = setInterval(() => {
+                pomoLeft -= 1;
+                if (pomoLeft <= 0) {
+                    pomoLeft = 0;
+                    stopPomo();
+                    pomoFinished();
+                }
+                renderPomo();
+            }, 1000);
+            updatePomoButton();
+        }
+
+        // stopPomo не трогает кнопку: его зовут и при сбросе, и при смене режима,
+        // где кнопку перерисовывает renderPomo.
+        function stopPomo() {
+            pomoRunning = false;
+            if (pomoId) { clearInterval(pomoId); pomoId = null; }
+            updatePomoButton();
+        }
+
+        function resetPomo() {
+            stopPomo();
+            pomoLeft = pomoTotal;
+            renderPomo();
+        }
+
+        function pomoFinished() {
+            addMsg(t("pomoDone"), "bot");
+            speak(t("pomoDone").replace(/<[^>]*>/g, ""));
+            updatePomoButton();
+        }
+
+        function updatePomoButton() {
+            const btn = document.getElementById("focusBtn");
+            if (btn) btn.classList.toggle("running", pomoRunning);
+        }
+
+        function renderPomo() {
+            const mins = Math.floor(pomoLeft / 60);
+            const secs = pomoLeft % 60;
+            const timeEl = document.getElementById("pomoTime");
+            if (!timeEl) return;
+            timeEl.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+            const bar = document.getElementById("pomoBar");
+            const done = pomoTotal > 0 ? (pomoTotal - pomoLeft) / pomoTotal : 0;
+            bar.style.strokeDasharray = POMO_CIRCLE;
+            bar.style.strokeDashoffset = POMO_CIRCLE * done;
+            bar.classList.toggle("break", isPomoBreak());
+
+            // Подпись фазы меняется вместе с режимом. data-i18n правим, чтобы
+            // смена языка не вернула «Работа» во время перерыва.
+            const phase = document.getElementById("pomoPhase");
+            const key = isPomoBreak() ? "pomoBreak" : "pomoWork";
+            phase.dataset.i18n = key;
+            phase.textContent = t(key);
+
+            const toggle = document.getElementById("pomoToggle");
+            const toggleKey = pomoRunning ? "pomoPause" : "pomoStart";
+            toggle.dataset.i18n = toggleKey;
+            toggle.textContent = t(toggleKey);
+        }
+
+        // ================= ШПАРГАЛКА =================
+        function openCheatModal() {
+            document.getElementById("cheatModal").classList.add("active");
+            document.getElementById("cheatTopicInput").focus();
+        }
+
+        function closeCheatModal() {
+            document.getElementById("cheatModal").classList.remove("active");
+        }
+
+        async function makeCheatSheet() {
+            const input = document.getElementById("cheatTopicInput");
+            const topic = input.value.trim();
+            const out = document.getElementById("cheatOut");
+            if (!topic) { out.className = "cheat-out"; out.textContent = t("cheatEmpty"); return; }
+
+            const btn = document.getElementById("cheatBtn");
+            btn.disabled = true;
+            out.className = "cheat-out loading";
+            out.textContent = t("typing") + "...";
+            try {
+                const res = await fetch(`${SERVER}/cheatsheet`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: apiKey, topic: topic })
+                });
+                const data = await res.json();
+                out.className = "cheat-out";
+                out.textContent = data.success ? data.answer : (data.error || t("cheatFail"));
+            } catch (e) {
+                out.className = "cheat-out";
+                out.textContent = "❌ " + t("serverDown");
+            } finally {
+                btn.disabled = false;
             }
         }
 
