@@ -54,15 +54,14 @@ from tools import (
 # Клиент Supabase пересоздаётся в connect_services() уже после импорта, поэтому
 # держим модульную ссылку: _sync_from_tools() обновит её на старте.
 supabase = tools.supabase
-from tools import BASE_DIR, WEB_DIR, DOWNLOADS_DIR, SETTINGS
+from tools import BASE_DIR, WEB_DIR, DOWNLOADS_DIR, SETTINGS, UPLOADS_DIR
 # Проверка адреса живёт в tools.py: тот же страж используется и внутри самих
 # инструментов (http_get_text, plain_page_text), поэтому одной копии достаточно.
 from tools import _safe_public_url
 
-# Куда складывать файлы, загруженные с устройства. Отдельная папка, а не
-# downloads: там лежит то, что сервер скачал сам по ссылке, и смешивать
-# источники в одном каталоге неудобно при разборе «откуда этот файл».
-UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+# Папка uploads/ теперь объявлена в tools.py: из неё же читает инструмент
+# read_uploaded_file, а ручка /upload_file сюда только пишет. Держать путь в
+# двух местах нельзя — это ровно тот случай, когда копии расходятся.
 
 
 def _sync_from_tools():
