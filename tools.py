@@ -3087,6 +3087,77 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
         logger.error(f"AI request: {e}")
         return f"Ошибка ИИ: {e}"
 
+
+# -------------------------------------------------
+# ШПАРГАЛКА
+# -------------------------------------------------
+# Отдельный запрос к модели, а не ask_ai. Причины:
+#  * шпаргалке не нужны инструменты — она ничего не открывает и не ищет,
+#    а лишние tools в теле запроса только провоцируют модель «сходить на сайт»;
+#  * историю диалога подмешивать нельзя: тема «химия» после переписки про
+#    дневник тянула бы ответ в сторону;
+#  * нужен свой лимит длины: тезисы не влезают в 500 токенов чата.
+CHEAT_SHEET_PROMPT = (
+    "Ты — генератор компактных шпаргалок. По теме пользователя сделай максимально "
+    "плотную выжимку: только формулы, определения, даты, правила, исключения и "
+    "ключевые тезисы, которые реально спрашивают на контрольной. "
+    "Никаких вступлений, обращений, пояснений и «воды» — сразу по делу. "
+    "Пиши короткими строками, при необходимости списком. "
+    "Отвечай на языке темы. Объём — до 350 слов."
+)
+
+# Кэш шпаргалок: одна и та же тема не должна каждый раз стоить запроса к модели.
+# Ключ — хэш модели и темы (без api_key: шпаргалка не зависит от пользователя,
+# в ней нет ни истории диалога, ни его сайтов).
+cheat_cache = {}
+
+
+def cheat_sheet(topic: str) -> str:
+    """Краткая шпаргалка по теме: формулы и ключевые тезисы без «воды»."""
+    url = ai_endpoint()
+    key = SETTINGS.get("ai_api_key", "")
+    model = SETTINGS.get("ai_model", "")
+    if not ai_ready():
+        return "Нейросеть не настроена: открой админку и укажи путь, ключ и модель"
+
+    topic = (topic or "").strip()
+    if not topic:
+        return "Напиши тему — например «тригонометрия» или «Великая Отечественная война»"
+
+    cache_key = hash_text(f"cheat|{model}|{topic.lower()}")
+    if cache_key in cheat_cache:
+        return cheat_cache[cache_key]
+
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": CHEAT_SHEET_PROMPT},
+            {"role": "user", "content": topic},
+        ],
+        # Ниже температуры чата: у шпаргалки важна точность формул, а не
+        # разнообразие формулировок.
+        "temperature": 0.2,
+        "max_tokens": 1200,
+    }
+    try:
+        res = requests.post(url, headers=headers, json=payload, timeout=60)
+        if res.status_code != 200:
+            logger.error(f"AI cheatsheet {res.status_code}: {res.text[:300]}")
+            return f"Ошибка ИИ ({res.status_code}): {res.text[:200]}"
+        msg = (res.json().get("choices") or [{}])[0].get("message") or {}
+        answer = msg.get("content") or msg.get("reasoning_content")
+        answer = strip_reasoning(answer)
+        if not answer:
+            return "Не понял тему — попробуй сформулировать иначе"
+        if len(cheat_cache) < 200:
+            cheat_cache[cache_key] = answer
+        return answer
+    except Exception as e:
+        logger.error(f"AI cheatsheet request: {e}")
+        return f"Ошибка ИИ: {e}"
+
+
 # -------------------------------------------------
 # КОМАНДЫ
 # -------------------------------------------------
