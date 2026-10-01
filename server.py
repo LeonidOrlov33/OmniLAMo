@@ -35,20 +35,23 @@ from bs4 import BeautifulSoup
 from schemas import (
     AdminRequest, ApiKeyRequest, AskRequest, BrowseRequest, CheatSheetRequest,
     CompleteTaskRequest, DeleteCredentialsRequest, DownloadRequest,
-    FetchUrlRequest, HistoryRequest, NewsRequest, RegisterRequest,
-    RememberRequest, SaveCredentialsRequest, UploadRequest,
+    FetchUrlRequest, HistoryRequest, LoginRequest, NewsRequest,
+    RegisterRequest, RememberRequest, SaveCredentialsRequest, UploadRequest,
 )
 from schemas import MAX_UPLOAD_BYTES
 # Функции и константы движка.
 from tools import (
     add_task, ai_endpoint, ai_summarize, ask_ai, browser_headers,
-    chat_log_page, cheat_sheet, clean_old_messages, clear_history, cloud_ready,
+    chat_log_page, cheat_sheet, check_user_password, clean_old_messages,
+    clear_history, cloud_ready,
     collect_news, complete_task, connect_services, create_user, delete_credentials,
-    dequeue_messages, detect_command, enqueue_message, execute_command,
-    format_news, get_tasks, get_user, list_credentials,
+    delete_user_account, dequeue_messages, detect_command, enqueue_message,
+    execute_command,
+    format_news, get_tasks, get_user, get_user_by_name, list_credentials,
     load_settings_from_cloud, log_chat, logger, normalize_site, open_as_user,
     plain_page_text, probe_cloud_tables, public_settings, rate_limit,
-    save_credentials, take_scheduled_messages, update_settings,
+    save_credentials, save_user_auth, take_scheduled_messages, update_settings,
+    user_account_stats,
 )
 
 # Клиент Supabase пересоздаётся в connect_services() уже после импорта, поэтому
@@ -299,13 +302,45 @@ async def health():
 
 @app.post("/register")
 def register(data: RegisterRequest):
+    """Регистрация по нику и паролю. Возвращает api_key нового аккаунта.
+
+    Ник проверяем на занятость ДО создания: иначе два человека с одинаковым
+    ником получили бы два аккаунта, а вход по нику всегда открывал бы один и
+    тот же — второй остался бы недоступен.
+    """
     if not rate_limit(f"reg_{data.name}", max_requests=3, window_seconds=300):
         return {"success": False, "error": "Слишком часто"}
+    if get_user_by_name(data.name):
+        return {"success": False, "error": "Этот ник уже занят"}
+    if not cloud_ready("users") or not cloud_ready("app_settings"):
+        return {"success": False, "error": "База недоступна, попробуй позже"}
     api_key = uuid.uuid4().hex + uuid.uuid4().hex
-    if create_user(data.name, api_key):
-        logger.info(f"Новый пользователь: {data.name}")
-        return {"success": True, "api_key": api_key}
-    return {"success": False, "error": "Ошибка БД"}
+    if not create_user(data.name, api_key):
+        return {"success": False, "error": "Ошибка БД"}
+    # Свёртку пароля кладём сразу после пользователя. Если она не сохранилась,
+    # аккаунт без пароля стал бы «мёртвым»: войти в него нельзя, а ник занят.
+    # Поэтому откатываем создание, а не оставляем полуготовую запись.
+    if not save_user_auth(data.name, api_key, data.password):
+        delete_user_account(api_key, data.name)
+        return {"success": False, "error": "Не удалось сохранить пароль, попробуй ещё раз"}
+    logger.info(f"Новый пользователь: {data.name}")
+    return {"success": True, "api_key": api_key, "name": data.name}
+
+
+@app.post("/login")
+def login(data: LoginRequest):
+    """Вход по нику и паролю. api_key выдаёт сервер, клиент его не присылает.
+
+    На «нет такого ника» и «не тот пароль» отвечаем одинаково: иначе перебором
+    ник можно было бы выяснить, какие ники заняты.
+    """
+    if not rate_limit(f"login_{data.name}", max_requests=10, window_seconds=300):
+        return {"success": False, "error": "Слишком часто, подожди немного"}
+    user = check_user_password(data.name, data.password)
+    if not user:
+        return {"success": False, "error": "Неверный ник или пароль"}
+    return {"success": True, "api_key": user.get("api_key", ""),
+            "name": user.get("name", data.name)}
 
 @app.post("/history")
 def history(data: HistoryRequest):
@@ -718,6 +753,52 @@ def admin_give_sub_data(data: AdminRequest):
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# Разбор одного аккаунта и его удаление. Обе ручки требуют пароль админа:
+# в статистике видны имя и api_key, то есть по ней аккаунт можно опознать, а
+# удаление и подавно не должно быть доступно кому угодно.
+@app.api_route("/admin_user_stats", methods=["GET", "POST"])
+def admin_user_stats(admin_password: str = "", api_key: str = ""):
+    """Подробная статистика по одному аккаунту: сообщения, задания, сайты."""
+    if not is_admin(admin_password):
+        return {"success": False, "error": "Неверный пароль"}
+    api_key = (api_key or "").strip()
+    if not api_key:
+        return {"success": False, "error": "Не указан api_key"}
+    try:
+        stats = user_account_stats(api_key)
+    except Exception as e:
+        logger.error(f"admin_user_stats: {e}")
+        return {"success": False, "error": str(e)}
+    if not stats.get("name"):
+        return {"success": False, "error": "Аккаунт не найден"}
+    return {"success": True, "stats": stats}
+
+
+@app.api_route("/admin_delete_user", methods=["GET", "POST"])
+def admin_delete_user(admin_password: str = "", api_key: str = ""):
+    """Удаляет аккаунт со всеми данными.
+
+    Именно аккаунт, а не строчку в users: задания, пароли сайтов, cookie
+    входа и очередь сообщений вычищаются вместе с ним (см. delete_user_account
+    в tools.py). Иначе по тому же api_key человек вернулся бы ко всему своему.
+    """
+    if not is_admin(admin_password):
+        return {"success": False, "error": "Неверный пароль"}
+    api_key = (api_key or "").strip()
+    if not api_key:
+        return {"success": False, "error": "Не указан api_key"}
+    try:
+        user = get_user(api_key)
+        if not user:
+            return {"success": False, "error": "Аккаунт не найден"}
+        removed = delete_user_account(api_key, user.get("name", ""))
+    except Exception as e:
+        logger.error(f"admin_delete_user: {e}")
+        return {"success": False, "error": str(e)}
+    logger.info(f"Аккаунт удалён: {user.get('name')} ({api_key[:8]}…)")
+    return {"success": True, "removed": removed}
 
 
 @app.api_route("/admin_settings_data", methods=["GET", "POST"])
