@@ -16,6 +16,7 @@ import uuid
 import random
 import datetime
 import hashlib
+import hmac
 import ipaddress
 import logging
 import re
@@ -814,6 +815,279 @@ def get_user(api_key: str):
     except Exception as e:
         logger.error(f"get_user: {e}")
         return None
+
+
+# -------------------------------------------------
+# ВХОД ПО НИКУ И ПАРОЛЮ
+# -------------------------------------------------
+# Пароль не хранится и не шифруется обратимо: в базе лежит только свёртка
+# PBKDF2-HMAC-SHA256 со случайной солью на пользователя. Даже при утечке базы
+# подобрать пароль перебором по такой свёртке нельзя, а восстановить исходный
+# текст из неё невозможно в принципе.
+#
+# Свёртка живёт не в таблице users, а в app_settings (id вида
+# user_auth:<ник>): так не нужна миграция схемы users, а сама app_settings —
+# та же «ключ-значение»-таблица, где уже лежат настройки и cookie входа.
+PBKDF2_ITERATIONS = 120_000
+_AUTH_ROW_PREFIX = "user_auth:"
+
+
+def _auth_row_id(name: str) -> str:
+    """id строки app_settings со свёрткой пароля. Ник к нижнему регистру."""
+    return f"{_AUTH_ROW_PREFIX}{name.strip().lower()}"
+
+
+def hash_password(password: str, iterations: int = PBKDF2_ITERATIONS) -> str:
+    """Свёртка пароля: pbkdf2_sha256$<итерации>$<соль>$<хеш> (всё hex)."""
+    salt = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations)
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """Сверяет пароль со свёрткой. Сравнение — постоянного времени."""
+    if not password or not stored:
+        return False
+    try:
+        algo, iterations, salt_hex, digest_hex = stored.split("$")
+        if algo != "pbkdf2_sha256":
+            return False
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"),
+            bytes.fromhex(salt_hex), int(iterations))
+        # compare_digest, а не ==: обычное сравнение строк выходит из цикла на
+        # первом несовпавшем байте, и по времени ответа пароль подбирается
+        # побайтово.
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+def get_user_by_name(name: str):
+    """Строка users по нику (регистр не важен) или None."""
+    name = (name or "").strip()
+    if not name or not cloud_ready("users"):
+        return None
+    try:
+        res = supabase.table("users").select(
+            "name,api_key,tariff,created_at").ilike("name", name).limit(1).execute()
+        return (res.data or [None])[0]
+    except Exception as e:
+        logger.error(f"get_user_by_name: {e}")
+        return None
+
+
+def save_user_auth(name: str, api_key: str, password: str) -> bool:
+    """Кладёт свёртку пароля пользователя в app_settings."""
+    if not cloud_ready("app_settings"):
+        return False
+    try:
+        supabase.table("app_settings").upsert({
+            "id": _auth_row_id(name),
+            "data": {
+                "password_hash": hash_password(password),
+                "api_key": api_key,
+            },
+            "updated_at": datetime.datetime.now().isoformat(),
+        }).execute()
+        return True
+    except Exception as e:
+        logger.error(f"save_user_auth: {e}")
+        return False
+
+
+def check_user_password(name: str, password: str):
+    """Строка users при верном пароле, иначе None.
+
+    Наружу причину отказа не отдаём: и «нет такого ника», и «не тот пароль»
+    выглядят одинаково, иначе по разным ответам можно перебором выяснить,
+    какие ники заняты.
+    """
+    if not cloud_ready("app_settings"):
+        return None
+    try:
+        res = supabase.table("app_settings").select("data").eq(
+            "id", _auth_row_id(name)).limit(1).execute()
+        rows = res.data or []
+        data = rows[0].get("data") if rows else None
+        if isinstance(data, str):
+            data = json.loads(data)
+        stored = data.get("password_hash") if isinstance(data, dict) else None
+    except Exception as e:
+        logger.error(f"check_user_password: {e}")
+        return None
+    if not stored or not verify_password(password, stored):
+        return None
+    return get_user_by_name(name)
+
+
+def drop_user_auth(name: str) -> None:
+    """Убирает свёртку пароля: при удалении аккаунта иначе остался бы вход."""
+    if not cloud_ready("app_settings"):
+        return
+    try:
+        supabase.table("app_settings").delete().eq(
+            "id", _auth_row_id(name)).execute()
+    except Exception as e:
+        logger.warning(f"drop_user_auth {name}: {e}")
+
+
+# -------------------------------------------------
+# УДАЛЕНИЕ АККАУНТА И СТАТИСТИКА ПО НЕМУ
+# -------------------------------------------------
+def _cloud_delete_where(table: str, column: str, value) -> int:
+    """Удаляет строки таблицы по условию. Возвращает число удалённых.
+
+    Отсутствие таблицы (PGRST205) — не ошибка: в разных развёртываниях набор
+    таблиц отличается. Поэтому сбой только пишем в лог и возвращаем 0.
+    """
+    if not cloud_ready(table):
+        return 0
+    try:
+        res = supabase.table(table).delete().eq(column, value).execute()
+        return len(res.data or [])
+    except Exception as e:
+        logger.warning(f"delete {table} by {column}: {e}")
+        return 0
+
+
+def _cloud_count(table: str, column: str, value) -> int:
+    """Считает строки таблицы по условию (0 при сбое или отсутствии таблицы)."""
+    if not cloud_ready(table):
+        return 0
+    try:
+        res = supabase.table(table).select(column).eq(column, value).execute()
+        return len(res.data or [])
+    except Exception as e:
+        logger.warning(f"count {table} by {column}: {e}")
+        return 0
+
+
+def _drop_local_tasks(api_key: str) -> int:
+    """Вычищает задания пользователя из локального tasks.json."""
+    with _tasks_lock:
+        try:
+            data = _load_tasks()
+        except Exception:
+            return 0
+        items = data.pop(api_key, None)
+        if items is None:
+            return 0
+        _write_tasks(data)
+        return len(items) if isinstance(items, list) else 0
+
+
+def _drop_local_credentials(api_key: str) -> int:
+    """Вычищает сохранённые учётки сайтов из локального credentials.json."""
+    with _cred_lock:
+        data = _load_credentials()
+        items = data.pop(api_key, None)
+        if items is None:
+            return 0
+        _write_credentials(data)
+        return len(items) if isinstance(items, dict) else 0
+
+
+def user_account_stats(api_key: str, name: str = "") -> dict:
+    """Сводка по одному аккаунту для админки.
+
+    Считаем по всем местам, где у пользователя остаются данные: иначе в
+    админке «0 сообщений» выглядело бы как пустой аккаунт, хотя задания и
+    сохранённые пароли у него есть.
+    """
+    user = get_user(api_key) or {}
+    name = name or user.get("name", "")
+
+    with _tasks_lock:
+        try:
+            local_tasks = _load_tasks().get(api_key, [])
+        except Exception:
+            local_tasks = []
+    tasks_cloud = _cloud_count("tasks", "api_key", api_key)
+
+    with _cred_lock:
+        local_creds = _load_credentials().get(api_key, {})
+    creds_cloud = len(_cloud_credential_rows(api_key))
+
+    # Вход в аккаунт возможен только если для ника лежит свёртка пароля.
+    has_password = False
+    if name and cloud_ready("app_settings"):
+        try:
+            res = supabase.table("app_settings").select("id").eq(
+                "id", _auth_row_id(name)).limit(1).execute()
+            has_password = bool(res.data)
+        except Exception as e:
+            logger.warning(f"user_account_stats auth {name}: {e}")
+
+    # Журнал чата живёт в памяти процесса: сразу после перезапуска он пуст,
+    # поэтому отдельно помечаем, что счётчик неполный.
+    with _chat_lock:
+        chat_entries = len(CHAT_LOG.get(api_key, []))
+        history_entries = len(CHAT_HISTORY.get(api_key, []))
+
+    return {
+        "name": name,
+        "api_key": api_key,
+        "tariff": user.get("tariff") or "free",
+        "created_at": user.get("created_at") or "",
+        "has_password": has_password,
+        "messages": _cloud_count("message_queue", "api_key", api_key),
+        "tasks": max(tasks_cloud, len(local_tasks) if isinstance(local_tasks, list) else 0),
+        "sites": max(creds_cloud, len(local_creds) if isinstance(local_creds, dict) else 0),
+        "chat_log_entries": chat_entries,
+        "history_entries": history_entries,
+    }
+
+
+def delete_user_account(api_key: str, name: str = "") -> dict:
+    """Полностью удаляет аккаунт: пользователя и все его данные.
+
+    Удалять только строку в users нельзя. Всё остальное — задания, пароли
+    сайтов, cookie входа, очередь сообщений, свёртка пароля — осталось бы в
+    базе, и человек, зарегистрировавшись заново, получил бы чужой api_key
+    вместе со всеми этими данными. Поэтому вычищаем всё разом.
+    """
+    removed = {}
+    api_key = (api_key or "").strip()
+    if not api_key:
+        return removed
+
+    user = get_user(api_key) or {}
+    name = name or user.get("name", "")
+
+    # 1) Сохранённые учётки сайтов и cookie входа к ним.
+    for row in _cloud_credential_rows(api_key):
+        site = row.get("site")
+        if site:
+            forget_site_session(api_key, site)
+    removed["credentials"] = _cloud_delete_where("credentials", "api_key", api_key)
+    removed["credentials_local"] = _drop_local_credentials(api_key)
+
+    # 2) Очередь сообщений — это переписка пользователя.
+    removed["message_queue"] = _cloud_delete_where("message_queue", "api_key", api_key)
+
+    # 3) Связка Telegram: иначе бот продолжил бы отвечать от его имени.
+    removed["telegram_users"] = _cloud_delete_where("telegram_users", "api_key", api_key)
+
+    # 4) Задания: в облаке и в локальном файле.
+    removed["tasks"] = _cloud_delete_where("tasks", "api_key", api_key)
+    removed["tasks_local"] = _drop_local_tasks(api_key)
+
+    # 5) Свёртка пароля и вход в аккаунт.
+    if name:
+        drop_user_auth(name)
+
+    # 6) Память процесса: журнал чата и контекст диалога.
+    clear_history(api_key)
+    with _site_lock:
+        for key in [k for k in _site_sessions if k[0] == api_key]:
+            _site_sessions.pop(key, None)
+
+    # 7) Сам пользователь — последним: пока он есть, остальные шаги видят
+    #    аккаунт и могут по нему отчитаться.
+    removed["users"] = _cloud_delete_where("users", "api_key", api_key)
+    return removed
 
 
 # -------------------------------------------------
