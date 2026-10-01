@@ -43,8 +43,27 @@ MAX_UPLOAD_B64 = (MAX_UPLOAD_BYTES // 3 + 1) * 4  # столько же в base6
 # -------------------------------------------------
 # МОДЕЛИ ЗАПРОСОВ
 # -------------------------------------------------
+# Пароль входа. Нижняя граница 6 — не украшение: аккаунт открывается по паре
+# «имя + пароль», и короткий пароль подбирается перебором за минуты. Верхняя
+# граница нужна, чтобы в теле запроса нельзя было прислать строку на мегабайт.
+PASSWORD_FIELD = Field(..., min_length=6, max_length=128)
+
+
 class RegisterRequest(BaseModel):
     name: str
+    password: str = PASSWORD_FIELD
+
+    @validator("name")
+    def validate_name(cls, v):
+        if not is_valid_name(v):
+            raise ValueError("Имя от 2 до 20 символов")
+        return v.strip()
+
+
+class LoginRequest(BaseModel):
+    """Вход по нику и паролю. api_key выдаёт сервер — клиент его не присылает."""
+    name: str
+    password: str = PASSWORD_FIELD
 
     @validator("name")
     def validate_name(cls, v):
