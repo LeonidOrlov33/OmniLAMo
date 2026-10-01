@@ -785,8 +785,15 @@
             <div class="logo">🚀</div>
             <div class="welcome-title">OmniLAMo</div>
             <div class="welcome-subtitle" data-i18n="welcomeSubtitle">Твой личный ИИ-помощник.<br>Общается, помогает с уроками и выполняет команды.</div>
-            <input type="text" class="name-input" id="nameInput" placeholder="Как тебя зовут?" data-i18n-ph="namePlaceholder" autofocus>
-            <button class="btn-primary" onclick="registerUser()" data-i18n="start">Начать</button>
+            <!-- Вход только по нику и паролю. Блок «регистрация» и блок «вход»
+                 отличаются одной кнопкой, поэтому поля общие. -->
+            <input type="text" class="name-input" id="nameInput" placeholder="Ник" autofocus autocomplete="username">
+            <input type="password" class="name-input" id="passwordInput" placeholder="Пароль (минимум 6 символов)" autocomplete="current-password">
+            <button class="btn-primary" id="authSubmit" onclick="submitAuth()" data-i18n="start">Начать</button>
+            <p style="color:var(--muted); font-size:13px;">
+                <span id="authSwitchHint">Уже есть аккаунт?</span>
+                <a href="#" id="authSwitch" onclick="toggleAuthMode(); return false;">Войти</a>
+            </p>
             <p style="color:var(--muted); font-size:13px;" data-i18n="afterLogin">💡 После входа напиши /help</p>
         </div>
 
@@ -1345,33 +1352,92 @@
             if (typing) typing.remove();
         }
 
-        async function registerUser() {
+        // Режим экрана входа: "register" — создаём новый аккаунт,
+        // "login" — входим в существующий. Поля у обоих одни и те же.
+        let authMode = "register";
+
+        function applyAuthMode() {
+            const isLogin = authMode === "login";
+            document.getElementById("authSubmit").textContent = isLogin ? "Войти" : "Начать";
+            document.getElementById("authSwitchHint").textContent =
+                isLogin ? "Ещё нет аккаунта?" : "Уже есть аккаунт?";
+            document.getElementById("authSwitch").textContent = isLogin ? "Создать" : "Войти";
+            document.getElementById("passwordInput")
+                .setAttribute("placeholder", isLogin ? "Пароль" : "Пароль (минимум 6 символов)");
+        }
+
+        function toggleAuthMode() {
+            authMode = (authMode === "login") ? "register" : "login";
+            applyAuthMode();
+        }
+
+        function submitAuth() {
+            if (authMode === "login") return loginUser();
+            return registerUser();
+        }
+
+        // Общая часть обоих путей: сохранить ключ и открыть чат.
+        function enterChat(name, key) {
+            apiKey = key;
+            userName = name;
+            localStorage.setItem("lenya_api_key", apiKey);
+            localStorage.setItem("lenya_user_name", userName);
+            show("chatScreen");
+            startSchedulerPolling();
+            // Лента могла остаться от прошлого пользователя на этом же
+            // устройстве — начинаем с чистого листа и подтягиваем журнал.
+            resetChatArea();
+            addMsg(t("greeting")(name), "bot");
+            addMsg(t("helpHint"), "bot");
+            loadHistory();
+            speak(t("greeting")(name).replace(/<[^>]*>/g, ""));
+        }
+
+        function readAuthFields() {
             const name = document.getElementById("nameInput").value.trim();
-            if (!name) return alert(t("enterName"));
+            const password = document.getElementById("passwordInput").value;
+            if (!name) { alert(t("enterName")); return null; }
+            if (password.length < 6) {
+                alert("Пароль должен быть не короче 6 символов");
+                return null;
+            }
+            return { name, password };
+        }
+
+        async function registerUser() {
+            const fields = readAuthFields();
+            if (!fields) return;
             try {
                 const res = await fetch(`${SERVER}/register`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name })
+                    body: JSON.stringify(fields)
                 });
                 const data = await res.json();
                 if (data.success) {
-                    apiKey = data.api_key;
-                    userName = name;
-                    localStorage.setItem("lenya_api_key", apiKey);
-                    localStorage.setItem("lenya_user_name", userName);
-                    show("chatScreen");
-                    startSchedulerPolling();
-                    // Лента могла остаться от прошлого пользователя на этом же
-                    // устройстве — начинаем с чистого листа и подтягиваем журнал
-                    // нового пользователя (у только что созданного он пуст).
-                    resetChatArea();
-                    addMsg(t("greeting")(name), "bot");
-                    addMsg(t("helpHint"), "bot");
-                    loadHistory();
-                    speak(t("greeting")(name).replace(/<[^>]*>/g, ""));
+                    enterChat(data.name || fields.name, data.api_key);
                 } else {
                     alert(data.error || t("regError"));
+                }
+            } catch (e) {
+                alert(t("serverDown"));
+            }
+        }
+
+        async function loginUser() {
+            const fields = readAuthFields();
+            if (!fields) return;
+            try {
+                const res = await fetch(`${SERVER}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(fields)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    enterChat(data.name || fields.name, data.api_key);
+                } else {
+                    alert(data.error || "Неверный ник или пароль");
                 }
             } catch (e) {
                 alert(t("serverDown"));
@@ -2196,6 +2262,7 @@
 
         window.addEventListener("DOMContentLoaded", function() {
             applyLang(LANG);
+            applyAuthMode();
             if (apiKey && userName) {
                 show("chatScreen");
                 startSchedulerPolling();
@@ -2209,6 +2276,14 @@
 
         document.getElementById("userInput").addEventListener("keypress", function(e) {
             if (e.key === "Enter") sendMessage();
+        });
+
+        // Enter в полях входа отправляет форму. Иначе после ввода пароля
+        // приходилось тянуться к кнопке мышью.
+        ["nameInput", "passwordInput"].forEach(function(id) {
+            document.getElementById(id).addEventListener("keypress", function(e) {
+                if (e.key === "Enter") submitAuth();
+            });
         });
     </script>
 </body>
