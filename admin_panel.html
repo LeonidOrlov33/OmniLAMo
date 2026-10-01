@@ -124,6 +124,7 @@
             <h3>👥 Пользователи</h3>
             <input type="text" id="searchInput" placeholder="Поиск по имени..." oninput="renderUsers()">
             <button class="secondary" onclick="loadUsers()">🔄 Загрузить</button>
+            <div id="userStatsBox" class="msg hidden"></div>
             <div id="userList"></div>
         </div>
 
@@ -310,16 +311,93 @@
             box.innerHTML = "<p style='color:var(--muted);padding:10px 0'>Никого не найдено</p>";
             return;
         }
+        // Ключ уходит в onclick строкой: он hex из uuid, но всё равно кодируем,
+        // чтобы значение не могло разорвать атрибут.
         box.innerHTML = list.map(u => {
             const paid = u.tariff && u.tariff !== "free";
+            const key = encodeURIComponent(u.api_key || "");
             return `<div class="user-item">
                 <div>
                     <b>${escapeHtml(u.name || "—")}</b><br>
                     <small style="color:var(--muted)">${escapeHtml(u.api_key || "")}</small>
                 </div>
-                <span class="badge ${paid ? "paid" : ""}">${escapeHtml(u.tariff || "free")}</span>
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:140px">
+                    <span class="badge ${paid ? "paid" : ""}" style="text-align:center">${escapeHtml(u.tariff || "free")}</span>
+                    <button class="secondary" style="margin:0;padding:8px 10px;font-size:13px" onclick="showUserStats(decodeURIComponent('${key}'))">📊 Статистика</button>
+                    <button class="danger" style="margin:0;padding:8px 10px;font-size:13px" onclick="deleteUser(decodeURIComponent('${key}'), '${escapeHtml((u.name || "").replace(/'/g, ""))}')">🗑 Удалить</button>
+                </div>
             </div>`;
         }).join("");
+    }
+
+    // ---------- АККАУНТ: СТАТИСТИКА И УДАЛЕНИЕ ----------
+    function showUserStats(apiKey) {
+        const box = document.getElementById("userStatsBox");
+        box.className = "msg";
+        box.textContent = "Загружаю...";
+        box.classList.remove("hidden");
+        fetch(`${SERVER}/admin_user_stats?admin_password=${encodeURIComponent(ADMIN_PASSWORD)}&api_key=${encodeURIComponent(apiKey)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    box.className = "msg error";
+                    box.textContent = "❌ " + (data.error || "Ошибка");
+                    return;
+                }
+                const s = data.stats;
+                box.className = "msg ok";
+                // textContent, а не innerHTML: имя приходит из базы, и разметку
+                // из него вставлять нельзя.
+                box.textContent =
+                    `👤 ${s.name}\n` +
+                    `🔑 ${s.api_key}\n` +
+                    `Тариф: ${s.tariff}\n` +
+                    `Создан: ${s.created_at || "—"}\n` +
+                    `Пароль задан: ${s.has_password ? "да" : "нет"}\n` +
+                    `Сообщений: ${s.messages}\n` +
+                    `Заданий: ${s.tasks}\n` +
+                    `Сохранённых сайтов: ${s.sites}\n` +
+                    `Реплик в журнале (в памяти): ${s.chat_log_entries}`;
+                box.style.whiteSpace = "pre-wrap";
+            })
+            .catch(() => {
+                box.className = "msg error";
+                box.textContent = "❌ Сервер недоступен";
+            });
+    }
+
+    function deleteUser(apiKey, name) {
+        // Двойное подтверждение: удаление необратимо и уносит задания,
+        // сохранённые пароли сайтов и историю сообщений.
+        if (!confirm(`Удалить аккаунт «${name}» со всеми данными?\n\nЗадания, сохранённые пароли сайтов и сообщения тоже удалятся.`)) return;
+        if (!confirm("Точно удалить? Отменить это будет нельзя.")) return;
+        const box = document.getElementById("userStatsBox");
+        fetch(`${SERVER}/admin_delete_user`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_password: ADMIN_PASSWORD, api_key: apiKey })
+        })
+            .then(r => r.json())
+            .then(data => {
+                box.className = "msg " + (data.success ? "ok" : "error");
+                box.style.whiteSpace = "pre-wrap";
+                if (data.success) {
+                    const r = data.removed || {};
+                    box.textContent = `✅ Аккаунт «${name}» удалён.\n` +
+                        `Удалено записей: пользователь ${r.users || 0}, ` +
+                        `сайты ${(r.credentials || 0) + (r.credentials_local || 0)}, ` +
+                        `сообщения ${r.message_queue || 0}, ` +
+                        `задания ${(r.tasks || 0) + (r.tasks_local || 0)}.`;
+                    refreshStats();
+                    loadUsers();
+                } else {
+                    box.textContent = "❌ " + (data.error || "Ошибка удаления");
+                }
+            })
+            .catch(() => {
+                box.className = "msg error";
+                box.textContent = "❌ Сервер недоступен";
+            });
     }
 
     // Экранирование имён и ключей: они приходят из базы и попадают в innerHTML.
