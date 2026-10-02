@@ -50,7 +50,8 @@ from tools import (
     format_news, get_tasks, get_user, get_user_by_name, list_credentials,
     load_settings_from_cloud, log_chat, logger, normalize_site, open_as_user,
     plain_page_text, probe_cloud_tables, public_settings, rate_limit,
-    save_credentials, save_user_auth, take_scheduled_messages, update_settings,
+    save_credentials, save_user_auth, set_user_password,
+    take_scheduled_messages, update_settings,
     user_account_stats,
 )
 
@@ -799,6 +800,36 @@ def admin_delete_user(admin_password: str = "", api_key: str = ""):
         return {"success": False, "error": str(e)}
     logger.info(f"Аккаунт удалён: {user.get('name')} ({api_key[:8]}…)")
     return {"success": True, "removed": removed}
+
+
+@app.api_route("/admin_set_password", methods=["GET", "POST"])
+def admin_set_password(admin_password: str = "", api_key: str = "",
+                       new_password: str = ""):
+    """Задаёт пользователю новый пароль вместо забытого.
+
+    Сам пароль не показываем и показать не можем: в базе только свёртка
+    PBKDF2. Поэтому админ не «восстанавливает» пароль, а выдаёт новый —
+    прежний после этого перестаёт работать.
+    """
+    if not is_admin(admin_password):
+        return {"success": False, "error": "Неверный пароль"}
+    api_key = (api_key or "").strip()
+    new_password = (new_password or "").strip()
+    if not api_key:
+        return {"success": False, "error": "Не указан api_key"}
+    if len(new_password) < 4:
+        return {"success": False, "error": "Пароль слишком короткий"}
+    try:
+        user = get_user(api_key)
+        if not user:
+            return {"success": False, "error": "Аккаунт не найден"}
+        if not set_user_password(user.get("name", ""), new_password):
+            return {"success": False, "error": "Не удалось сохранить пароль"}
+    except Exception as e:
+        logger.error(f"admin_set_password: {e}")
+        return {"success": False, "error": str(e)}
+    logger.info(f"Пароль сброшен админом: {user.get('name')} ({api_key[:8]}…)")
+    return {"success": True}
 
 
 @app.api_route("/admin_settings_data", methods=["GET", "POST"])
