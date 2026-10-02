@@ -1368,6 +1368,37 @@ SCHEDULED_FILE = os.path.join(BASE_DIR, "scheduled.json")
 _sched_lock = threading.RLock()
 _scheduler_started = False
 
+# В каком часовом поясе трактуются метки расписания. Метку собирает браузер по
+# своим часам («Ежедневно в 07:30:00» — это местное время пользователя), а
+# планировщик сверяет её со своими. Процесс на Render живёт в UTC, поэтому без
+# этой настройки задание на 07:30 по Москве выполнялось бы в 10:30 по Москве.
+# TASK_TIMEZONE задаёт пояс явно; по умолчанию — Москва.
+TASK_TIMEZONE = os.getenv("TASK_TIMEZONE", "Europe/Moscow")
+
+
+def _schedule_now() -> datetime.datetime:
+    """Текущее время в поясе TASK_TIMEZONE, без tzinfo.
+
+    Возвращаем «наивное» время намеренно: метка расписания — это настенные
+    часы без пояса, и все сравнения (_last_occurrence, due > now) работают с
+    наивными значениями. Если пояс неизвестен (нет zoneinfo или tzdata),
+    честно откатываемся на время процесса.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo(TASK_TIMEZONE)).replace(tzinfo=None)
+    except Exception as e:   # pragma: no cover — среда без zoneinfo/tzdata
+        logger.warning(f"Часовой пояс {TASK_TIMEZONE} недоступен, беру время процесса: {e}")
+        return datetime.datetime.now()
+
+
+# Время последнего запуска задания в памяти процесса. Это защёлка на случай,
+# когда колонку last_run не удалось ни прочитать, ни записать (старая схема
+# базы — ошибка 42703). Без неё ежедневное задание выполнялось бы заново
+# каждые 20 секунд, пока идёт проверка расписания.
+_memory_last_run = {}
+_memory_last_run_lock = threading.RLock()
+
 TASK_LABEL_RE = re.compile(r"^\[(.+?)\]\s*(.*)$", re.DOTALL)
 TIME_RE = re.compile(r"(\d{1,2}):(\d{2})(?::(\d{2}))?")
 DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{4})")
@@ -1497,11 +1528,19 @@ def _last_occurrence(sched: dict, now: datetime.datetime) -> datetime.datetime:
 
 def _set_task_last_run(api_key: str, task_id: str, when_iso: str) -> bool:
     """Отмечает время последнего запуска (для ежедневных и еженедельных)."""
+    # Защёлка в памяти ставится всегда и первой: если запись в базу не пройдёт
+    # (старая схема без колонки last_run), задание всё равно не запустится
+    # повторно в этом же процессе.
+    try:
+        _memory_last_run[(api_key, task_id)] = datetime.datetime.fromisoformat(when_iso)
+    except (TypeError, ValueError):
+        _memory_last_run[(api_key, task_id)] = _schedule_now()
     if cloud_ready("tasks"):
         try:
-            supabase.table("tasks").update({"last_run": when_iso}).eq(
+            res = supabase.table("tasks").update({"last_run": when_iso}).eq(
                 "api_key", api_key).eq("id", task_id).execute()
-            return True
+            if res.data:
+                return True
         except Exception as e:
             logger.error(f"last_run облако: {e}")
     with _tasks_lock:
@@ -1580,15 +1619,24 @@ def _due_candidates():
     """Все активные задания: из облака, если таблица есть, иначе из файла."""
     items = []
     if cloud_ready("tasks"):
-        try:
-            rows = supabase.table("tasks").select(
-                "id,api_key,task,last_run").eq("status", "active").execute().data or []
+        rows = None
+        # Колонка last_run появилась позже самой таблицы: в развёртываниях со
+        # старой схемой её нет, и запрос с ней падал с ошибкой 42703. Раньше это
+        # молча уводило планировщик в локальный файл, которого на Render нет, —
+        # и ни одно задание по расписанию не выполнялось. Теперь при такой
+        # ошибке повторяем запрос без last_run.
+        for columns in ("id,api_key,task,last_run", "id,api_key,task"):
+            try:
+                rows = supabase.table("tasks").select(
+                    columns).eq("status", "active").execute().data or []
+                break
+            except Exception as e:
+                logger.error(f"Планировщик, облако ({columns}): {e}")
+        if rows is not None:
             for r in rows:
                 items.append((r.get("api_key", ""), r.get("id", ""),
                               r.get("task", ""), r.get("last_run")))
             return items
-        except Exception as e:
-            logger.error(f"Планировщик, облако: {e}")
     with _tasks_lock:
         try:
             data = _load_tasks()
@@ -1626,7 +1674,7 @@ def _mark_bad_schedule(task_id: str) -> bool:
 
 
 def _check_due_tasks():
-    now = datetime.datetime.now()
+    now = _schedule_now()
     for api_key, task_id, raw, last_run in _due_candidates():
         label, text = _split_task_label(raw)
         if not label or not text:
@@ -1657,6 +1705,11 @@ def _check_due_tasks():
                 last_dt = datetime.datetime.fromisoformat(last_run)
             except (TypeError, ValueError):
                 last_dt = None
+        if last_dt is None:
+            # Метку запуска не прочитали (старая схема базы без колонки
+            # last_run) — берём защёлку из памяти процесса.
+            with _memory_last_run_lock:
+                last_dt = _memory_last_run.get((api_key, task_id))
         if last_dt and last_dt >= due:
             continue
         # Отмечаем запуск ДО выполнения: если complete_task/_set_task_last_run
@@ -3653,7 +3706,10 @@ _URL_STOP_RE = re.compile(r"[\u0400-\u04FF\"'<>«»]")
 
 
 def _clean_url(raw: str) -> str:
-    """Обрезает хвост фразы, который regex захватил вместе со ссылкой.
+    # Строка raw: в докстринге стоит регулярка ``https?://[^\s]+``, и без
+    # префикса Python ругался на «invalid escape sequence "\s"» при каждом
+    # импорте — предупреждение попадало в лог деплоя и пугало зря.
+    r"""Обрезает хвост фразы, который regex захватил вместе со ссылкой.
 
     ``https?://[^\s]+`` останавливается только на пробеле, поэтому в
     «открой https://example.com,пожалуйста» (без пробела после запятой) в
