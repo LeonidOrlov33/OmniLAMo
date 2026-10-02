@@ -48,7 +48,8 @@ from tools import (
     delete_user_account, dequeue_messages, detect_command, enqueue_message,
     execute_command,
     format_news, get_tasks, get_user, get_user_by_name, list_credentials,
-    load_settings_from_cloud, log_chat, logger, normalize_site, open_as_user,
+    load_settings_from_cloud, log_chat, logger, mark_queue_done,
+    normalize_site, open_as_user,
     plain_page_text, probe_cloud_tables, public_settings, rate_limit,
     save_credentials, save_user_auth, set_user_password,
     take_scheduled_messages, update_settings,
@@ -397,17 +398,10 @@ def ask(data: AskRequest):
         # Команда выполняется сразу и возвращается готовым текстом: раньше
         # клиент получал только {"command": ...} и молча показывал «Готово».
         answer = execute_command(data.api_key, command)
-        try:
-            supabase.table("message_queue").update({"answer": answer, "status": "done"}).eq(
-                "api_key", data.api_key).eq("status", "new").execute()
-        except Exception as e:
-            logger.error(f"Queue update: {e}")
+        mark_queue_done(data.api_key, answer)
         return _answer(data.api_key, answer, command=command)
     answer = ask_ai(user["name"], data.text, data.api_key)
-    try:
-        supabase.table("message_queue").update({"answer": answer, "status": "done"}).eq("api_key", data.api_key).eq("status", "new").execute()
-    except Exception as e:
-        logger.error(f"Queue update: {e}")
+    mark_queue_done(data.api_key, answer)
     return _answer(data.api_key, answer)
 
 @app.post("/get_updates")
