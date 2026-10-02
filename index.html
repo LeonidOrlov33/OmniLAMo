@@ -2113,6 +2113,65 @@
             }
         }
 
+        // ================= ЗВУКИ =================
+        // Тоны синтезируем прямо в браузере, а не тянем mp3: страница живёт и
+        // на Render, и локально из файла — внешний файл пришлось бы разрешать
+        // в CORS, а генератор работает всегда и не ждёт загрузки.
+        let _audioCtx = null;
+
+        function audioCtx() {
+            if (!_audioCtx) {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return null;
+                _audioCtx = new Ctx();
+            }
+            // Браузер разрешает звук только после действия пользователя.
+            // Таймер и задания запускают кнопкой, так что к этому моменту
+            // контекст уже разбужен; на всякий случай будим его ещё раз.
+            if (_audioCtx.state === "suspended") _audioCtx.resume().catch(() => {});
+            return _audioCtx;
+        }
+
+        // Один тон: начинается через delay секунд и плавно затухает.
+        // Резкий обрыв слышен как щелчок, поэтому гасим экспонентой.
+        function tone(ctx, freq, start, dur, gain) {
+            const osc = ctx.createOscillator();
+            const vol = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = freq;
+            vol.gain.setValueAtTime(0.0001, start);
+            vol.gain.linearRampToValueAtTime(gain, start + 0.01);
+            vol.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+            osc.connect(vol);
+            vol.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + dur + 0.05);
+        }
+
+        // Звонок таймера: три удара, в каждом — основной тон и два обертона.
+        // Без обертонов получается «бип» будильника, с ними — «дзынь».
+        function playBell() {
+            const ctx = audioCtx();
+            if (!ctx) return;
+            const t0 = ctx.currentTime;
+            [0, 0.9, 1.8].forEach(offset => {
+                const s = t0 + offset;
+                tone(ctx, 880, s, 1.4, 0.22);
+                tone(ctx, 1320, s, 1.1, 0.12);
+                tone(ctx, 1760, s, 0.8, 0.07);
+            });
+        }
+
+        // Уведомление задания: короткий двухтоновый «дин-дон». Тише звонка —
+        // он звучит не по таймеру, а когда придёт ответ планировщика.
+        function playNotify() {
+            const ctx = audioCtx();
+            if (!ctx) return;
+            const t0 = ctx.currentTime;
+            tone(ctx, 988, t0, 0.35, 0.18);
+            tone(ctx, 1319, t0 + 0.14, 0.5, 0.16);
+        }
+
         // ================= ТАЙМЕР «ПОМИДОР» =================
         // Отсчёт живёт в переменных модуля, а не в DOM: таймер обязан идти и
         // когда модалка закрыта. Кнопка 🍅 в панели при этом пульсирует.
@@ -2182,6 +2241,7 @@
         }
 
         function pomoFinished() {
+            playBell();
             addMsg(t("pomoDone"), "bot");
             speak(t("pomoDone").replace(/<[^>]*>/g, ""));
             updatePomoButton();
@@ -2413,6 +2473,10 @@
                 });
                 const data = await res.json();
                 if (data.success && (data.messages || []).length) {
+                    // Звук — один на всю пачку, а не на каждое сообщение:
+                    // иначе при трёх готовых заданиях подряд звоночек
+                    // накладывался бы сам на себя.
+                    playNotify();
                     data.messages.forEach(m => {
                         addMsg("🔔 " + m.answer, "bot");
                         speak(m.answer);
