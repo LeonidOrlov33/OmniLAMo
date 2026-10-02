@@ -2722,6 +2722,32 @@ def enqueue_message(api_key: str, text: str):
         logger.error(f"enqueue: {e}")
         return False
 
+
+def mark_queue_done(api_key: str, answer: str):
+    """Закрывает реплики очереди готовым ответом.
+
+    Очередь — это то, из чего страница чата забирает ответы (/get_updates).
+    Раньше её закрывал только веб-сервер: ответ, полученный через Telegram, в
+    очередь не попадал, и на сайте этот разговор не отображался вовсе. Теперь
+    закрытие вынесено в общую функцию, чтобы оба входа (сайт и Telegram)
+    работали одинаково и правило не разъезжалось по копиям.
+
+    Проверка cloud_ready — по той же причине, что и в enqueue_message: без
+    таблицы каждый вызов сыпал бы в лог «'NoneType' object has no attribute
+    'table'», хотя база просто не настроена.
+    """
+    if not cloud_ready("message_queue"):
+        return False
+    try:
+        supabase.table("message_queue").update(
+            {"answer": answer, "status": "done"}
+        ).eq("api_key", api_key).eq("status", "new").execute()
+        return True
+    except Exception as e:
+        logger.error(f"Queue update: {e}")
+        return False
+
+
 def dequeue_messages(api_key: str):
     try:
         res = supabase.table("message_queue").select("*").eq("api_key", api_key).eq("status", "done").execute()
