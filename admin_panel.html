@@ -330,12 +330,16 @@
         }).join("");
     }
 
-    // ---------- АККАУНТ: СТАТИСТИКА И УДАЛЕНИЕ ----------
+    // ---------- АККАУНТ: СТАТИСТИКА, ПАРОЛЬ И УДАЛЕНИЕ ----------
+    let currentUserKey = "";
+
     function showUserStats(apiKey) {
         const box = document.getElementById("userStatsBox");
+        currentUserKey = apiKey;
         box.className = "msg";
         box.textContent = "Загружаю...";
         box.classList.remove("hidden");
+        box.style.whiteSpace = "pre-wrap";
         fetch(`${SERVER}/admin_user_stats?admin_password=${encodeURIComponent(ADMIN_PASSWORD)}&api_key=${encodeURIComponent(apiKey)}`)
             .then(r => r.json())
             .then(data => {
@@ -344,26 +348,122 @@
                     box.textContent = "❌ " + (data.error || "Ошибка");
                     return;
                 }
-                const s = data.stats;
                 box.className = "msg ok";
-                // textContent, а не innerHTML: имя приходит из базы, и разметку
-                // из него вставлять нельзя.
-                box.textContent =
-                    `👤 ${s.name}\n` +
-                    `🔑 ${s.api_key}\n` +
-                    `Тариф: ${s.tariff}\n` +
-                    `Создан: ${s.created_at || "—"}\n` +
-                    `Пароль задан: ${s.has_password ? "да" : "нет"}\n` +
-                    `Сообщений: ${s.messages}\n` +
-                    `Заданий: ${s.tasks}\n` +
-                    `Сохранённых сайтов: ${s.sites}\n` +
-                    `Реплик в журнале (в памяти): ${s.chat_log_entries}`;
-                box.style.whiteSpace = "pre-wrap";
+                // Всё содержимое аккаунта — текстом: имена, сообщения и логины
+                // приходят из базы, и вставлять из них разметку нельзя.
+                box.textContent = formatUserDetails(data.stats);
+                renderPasswordReset(box, data.stats);
             })
             .catch(() => {
                 box.className = "msg error";
                 box.textContent = "❌ Сервер недоступен";
             });
+    }
+
+    // Разделы с данными: заголовок и строки. Пустые разделы не печатаем —
+    // иначе в ответе на «кто это?» половина строк была бы прочерками.
+    function section(title, rows) {
+        if (!rows || !rows.length) return "";
+        return `\n\n${title}:\n` + rows.map(r => "  • " + r).join("\n");
+    }
+
+    function formatUserDetails(s) {
+        const messages = s.messages_list || [];
+        const chat = s.chat_log || [];
+        const tasks = s.tasks_list || [];
+        const sites = s.sites_list || [];
+
+        let text =
+            `👤 ${s.name || "—"}\n` +
+            `🔑 ${s.api_key || "—"}\n` +
+            `Тариф: ${s.tariff || "free"}\n` +
+            `Создан: ${s.created_at || "—"}\n` +
+            `Пароль: ${s.has_password ? "задан" : "не задан"}\n` +
+            `Сообщений: ${s.messages || 0}\n` +
+            `Заданий: ${s.tasks || 0}\n` +
+            `Сохранённых сайтов: ${s.sites || 0}\n` +
+            `Реплик в журнале (в памяти): ${s.chat_log_entries || 0}`;
+
+        text += section("Сообщения в очереди", messages.map(m => {
+            const who = m.role === "assistant" || m.role === "ai" ? "агент" : "человек";
+            return `[${who}] ${(m.text || "").slice(0, 300)}`;
+        }));
+
+        text += section("Переписка (журнал в памяти)", chat.map(m => {
+            const who = (m.role === "assistant" || m.role === "ai") ? "агент" : "человек";
+            return `[${who}] ${(m.text || m.message || "").slice(0, 300)}`;
+        }));
+
+        text += section("Задания", tasks.map(t =>
+            t.when ? `${(t.task || "").slice(0, 200)} — ${t.when}` : (t.task || "").slice(0, 200)));
+
+        text += section("Сайты (логин)", sites.map(x =>
+            `${x.site || "—"}: ${x.login || "—"}`));
+
+        // Пароли сайтов в админку не выгружаются: они лежат зашифрованными, и
+        // для разбора обращения достаточно видеть, где у человека есть учётка.
+        if (sites.length) text += "\n\nПароли сайтов не показываются: в базе они зашифрованы.";
+
+        return text;
+    }
+
+    // Сброс пароля: отдельным блоком, потому что пароль нельзя показать —
+    // в базе только свёртка, поэтому админ задаёт новый, а не «напоминает» старый.
+    function renderPasswordReset(box, s) {
+        const wrap = document.createElement("div");
+        wrap.style.whiteSpace = "normal";
+        wrap.style.marginTop = "10px";
+        wrap.style.paddingTop = "10px";
+        wrap.style.borderTop = "1px solid var(--border)";
+
+        const label = document.createElement("div");
+        label.className = "hint";
+        label.textContent = s.password_note ||
+            "Задать пользователю новый пароль вместо забытого.";
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Новый пароль (минимум 4 символа)";
+        input.id = "newPasswordInput";
+
+        const btn = document.createElement("button");
+        btn.className = "secondary";
+        btn.style.cssText = "margin:0;padding:8px 10px;font-size:13px";
+        btn.textContent = "🔑 Задать новый пароль";
+        btn.onclick = () => setUserPassword(s.api_key, input);
+
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        wrap.appendChild(btn);
+        box.appendChild(wrap);
+    }
+
+    function setUserPassword(apiKey, input) {
+        const newPassword = (input.value || "").trim();
+        if (newPassword.length < 4) {
+            alert("Пароль должен быть не короче 4 символов");
+            return;
+        }
+        if (!confirm("Задать новый пароль?\n\nСтарый пароль после этого работать перестанет.")) return;
+        fetch(`${SERVER}/admin_set_password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                admin_password: ADMIN_PASSWORD,
+                api_key: apiKey,
+                new_password: newPassword
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = "";
+                    alert("✅ Новый пароль задан");
+                } else {
+                    alert("❌ " + (data.error || "Не удалось задать пароль"));
+                }
+            })
+            .catch(() => alert("❌ Сервер недоступен"));
     }
 
     function deleteUser(apiKey, name) {
