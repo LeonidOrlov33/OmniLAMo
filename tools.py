@@ -964,6 +964,23 @@ def _cloud_count(table: str, column: str, value) -> int:
         return 0
 
 
+def _cloud_rows(table: str, column: str, value, limit: int = 200) -> list:
+    """Строки таблицы по условию (пустой список при сбое или отсутствии таблицы).
+
+    _cloud_count отдаёт только число, а админке нужны сами тексты: «12
+    сообщений» не даёт понять, о чём человек писал. Читаем с ограничением,
+    чтобы одна учётка не вытянула всю таблицу в ответ на запрос.
+    """
+    if not cloud_ready(table):
+        return []
+    try:
+        res = supabase.table(table).select("*").eq(column, value).limit(limit).execute()
+        return res.data or []
+    except Exception as e:
+        logger.warning(f"rows {table} by {column}: {e}")
+        return []
+
+
 def _drop_local_tasks(api_key: str) -> int:
     """Вычищает задания пользователя из локального tasks.json."""
     with _tasks_lock:
@@ -994,7 +1011,8 @@ def user_account_stats(api_key: str, name: str = "") -> dict:
 
     Считаем по всем местам, где у пользователя остаются данные: иначе в
     админке «0 сообщений» выглядело бы как пустой аккаунт, хотя задания и
-    сохранённые пароли у него есть.
+    сохранённые пароли у него есть. Вместе со счётчиками отдаём и сами
+    тексты: администратору нужно видеть переписку, а не только «12 сообщений».
     """
     user = get_user(api_key) or {}
     name = name or user.get("name", "")
@@ -1023,8 +1041,48 @@ def user_account_stats(api_key: str, name: str = "") -> dict:
     # Журнал чата живёт в памяти процесса: сразу после перезапуска он пуст,
     # поэтому отдельно помечаем, что счётчик неполный.
     with _chat_lock:
-        chat_entries = len(CHAT_LOG.get(api_key, []))
+        chat_log = list(CHAT_LOG.get(api_key, []))
         history_entries = len(CHAT_HISTORY.get(api_key, []))
+
+    # Тексты сообщений: журнал в памяти + очередь в облаке (то, что ещё не
+    # забрал клиент). Оба источника нужны — иначе часть переписки не видна.
+    messages = []
+    for row in _cloud_rows("message_queue", "api_key", api_key):
+        text = row.get("text") or row.get("message") or row.get("answer") or ""
+        if text:
+            messages.append({
+                "role": row.get("role") or "user",
+                "text": text,
+                "ts": row.get("created_at") or row.get("ts") or "",
+            })
+
+    task_texts = []
+    for item in (local_tasks if isinstance(local_tasks, list) else []):
+        text = item.get("task") if isinstance(item, dict) else str(item)
+        if text:
+            task_texts.append({
+                "task": text,
+                "when": (item.get("time") or item.get("when") or "")
+                if isinstance(item, dict) else "",
+            })
+    for row in _cloud_rows("tasks", "api_key", api_key):
+        text = row.get("task") or ""
+        if text and not any(t["task"] == text for t in task_texts):
+            task_texts.append({"task": text, "when": row.get("time") or ""})
+
+    # Сайты: только логины. Пароли лежат зашифрованными и в админку не
+    # выгружаются — для разбора жалобы достаточно знать, где у человека есть
+    # учётка, а показывать чужие пароли незачем.
+    sites = []
+    for row in _cloud_credential_rows(api_key):
+        # login_from_row, а не row["login"]: в базе логин лежит зашифрованным,
+        # и в админке вместо него был бы виден токен Fernet.
+        sites.append({"site": row.get("site") or "", "login": login_from_row(row)})
+    if isinstance(local_creds, dict):
+        for site, item in local_creds.items():
+            login = login_from_row(item if isinstance(item, dict) else {})
+            if not any(s["site"] == site for s in sites):
+                sites.append({"site": site, "login": login})
 
     return {
         "name": name,
@@ -1032,12 +1090,34 @@ def user_account_stats(api_key: str, name: str = "") -> dict:
         "tariff": user.get("tariff") or "free",
         "created_at": user.get("created_at") or "",
         "has_password": has_password,
-        "messages": _cloud_count("message_queue", "api_key", api_key),
+        "password_note": ("Хранится только свёртка PBKDF2 — прочитать пароль "
+                          "нельзя, можно задать новый."),
+        "messages": max(_cloud_count("message_queue", "api_key", api_key), len(messages)),
         "tasks": max(tasks_cloud, len(local_tasks) if isinstance(local_tasks, list) else 0),
         "sites": max(creds_cloud, len(local_creds) if isinstance(local_creds, dict) else 0),
-        "chat_log_entries": chat_entries,
+        "chat_log_entries": len(chat_log),
         "history_entries": history_entries,
+        "messages_list": messages,
+        "chat_log": chat_log,
+        "tasks_list": task_texts,
+        "sites_list": sites,
     }
+
+
+def set_user_password(name: str, password: str) -> bool:
+    """Задаёт пользователю новый пароль (старый прочитать нельзя).
+
+    Свёртка перезаписывается: прежний пароль перестаёт работать. Нужно это
+    ровно затем, зачем в админке кнопка «задать новый пароль» — человек забыл
+    свой, а восстановить его из свёртки невозможно.
+    """
+    name = (name or "").strip()
+    if not name or not password:
+        return False
+    user = get_user_by_name(name)
+    if not user:
+        return False
+    return save_user_auth(name, user.get("api_key", ""), password)
 
 
 def delete_user_account(api_key: str, name: str = "") -> dict:
