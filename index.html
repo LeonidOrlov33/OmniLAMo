@@ -345,7 +345,9 @@
             gap: 10px;
             align-items: center;
         }
-        .input-row-extra { justify-content: center; }
+        /* flex-wrap нужен из-за подсказки о голосах Edge: она занимает всю
+           строку (flex: 0 0 100%) и без переноса выдавила бы кнопки за экран. */
+        .input-row-extra { justify-content: center; flex-wrap: wrap; }
         .input-field { 
             flex: 1; 
             background: rgba(0, 0, 0, 0.5); 
@@ -569,6 +571,41 @@
         .btn-voice.muted {
             color: var(--muted);
             opacity: 0.55;
+        }
+        /* Выбор голоса. Список голосов в браузере длинный и с длинными
+           названиями («Microsoft Dmitry Online (Natural) - Russian»), поэтому
+           селекту даём flex и обрезаем хвост многоточием: без min-width: 0
+           flex-элемент не сжимается ниже содержимого и распирает ряд кнопок. */
+        .voice-select {
+            flex: 0 1 210px;
+            min-width: 0;
+            height: 50px;
+            padding: 0 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 25px;
+            color: var(--text);
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-overflow: ellipsis;
+        }
+        .voice-select:focus {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 18px rgba(0, 255, 136, 0.3);
+        }
+        /* Погашенный селект — визуальная пара к кнопке 🔇. */
+        .voice-select.muted { color: var(--muted); opacity: 0.55; }
+        /* Голоса Edge: остальным браузерам селект всё равно нужен (там свои
+           голоса), но подсказку «поставь Edge» показываем только когда
+           нейросетевых голосов нет вовсе. */
+        .voice-hint {
+            flex: 0 0 100%;
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 6px;
         }
         .lang-close {
             width: 100%;
@@ -814,6 +851,12 @@
                     <button class="btn btn-task" onclick="location.href='tasks.html'" title="Добавить задание" data-i18n-title="addTaskTitle">📝</button>
                     <button class="btn btn-site" onclick="openSiteModal()" title="Добавить сайт" data-i18n-title="addSiteTitle">🔐</button>
                     <button class="btn btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Озвучивать ответы">🔊</button>
+                    <!-- Выбор голоса. В Edge список содержит нейросетевые голоса
+                         («Microsoft Dmitry Online (Natural)»), в остальных
+                         браузерах — свои системные. Список наполняется из
+                         speechSynthesis.getVoices() в fillVoiceSelect(). -->
+                    <select class="voice-select" id="voiceSelect" onchange="onVoiceChange()"
+                            title="Голос озвучки"></select>
                     <button class="btn btn-focus" id="focusBtn" onclick="openPomoModal()" title="Таймер Помидор" data-i18n-title="pomoTitle">🍅</button>
                     <button class="btn btn-cheat" onclick="openCheatModal()" title="Шпаргалка по теме" data-i18n-title="cheatTitle">📄</button>
                     <button class="btn btn-download" onclick="openDownloadModal()" title="Скачать файл по ссылке" data-i18n-title="dlTitle">📥</button>
@@ -1162,6 +1205,22 @@
             ja: { voiceOnTitle: "🔊 読み上げオン — タップでオフ", voiceOffTitle: "🔇 読み上げオフ — タップでオン", voiceUnsupported: "このブラウザは音声入力に対応していません。Chrome か Edge をお試しください。", voiceNothing: "聞き取れませんでした — もう一度お試しください。", voiceTimeout: "❌ 音声認識が応答しません。ブラウザが認識サービス（通常は Google のサーバー）に到達できていない可能性があります。google.com が開くか確認してください。今は手入力できます。" },
             pt: { voiceOnTitle: "🔊 Voz ligada — toque para desligar", voiceOffTitle: "🔇 Voz desligada — toque para ligar", voiceUnsupported: "Este navegador não tem ditado por voz. Tente Chrome ou Edge.", voiceNothing: "Não ouvi nada — tente de novo.", voiceTimeout: "❌ O reconhecimento de voz não respondeu. Provavelmente o navegador não alcança o serviço de reconhecimento (geralmente os servidores do Google) — verifique se o google.com abre. Por enquanto, digite a mensagem." }
         };
+        // Подписи выбора голоса. Отдельным блоком по той же причине, что
+        // SITE_I18N и VOICE_I18N: правки в десяти языковых секциях выше
+        // разъехались бы. Группы списка голосов: нейросетевые Edge и остальные.
+        const VOICE_PICK_I18N = {
+            ru: { voiceSelectTitle: "Голос озвучки", voiceGroupNeural: "⭐ Нейросетевые (Microsoft Edge)", voiceGroupOther: "Системные голоса", voiceEdgeHint: "Нейросетевые голоса Microsoft Edge доступны только в браузере Edge. Открой эту страницу в Edge, чтобы выбрать голос — например «Microsoft Dmitry Online (Natural)».", voiceSample: "Так звучит выбранный голос." },
+            en: { voiceSelectTitle: "Speaking voice", voiceGroupNeural: "⭐ Neural (Microsoft Edge)", voiceGroupOther: "System voices", voiceEdgeHint: "Microsoft Edge neural voices are only available in the Edge browser. Open this page in Edge to pick one — for example «Microsoft Dmitry Online (Natural)».", voiceSample: "This is the selected voice." },
+            zh: { voiceSelectTitle: "朗读声音", voiceGroupNeural: "⭐ 神经网络语音（Microsoft Edge）", voiceGroupOther: "系统语音", voiceEdgeHint: "微软 Edge 神经网络语音仅在 Edge 浏览器中可用。请用 Edge 打开本页选择语音，例如「Microsoft Dmitry Online (Natural)」。", voiceSample: "这是所选语音的效果。" },
+            es: { voiceSelectTitle: "Voz de lectura", voiceGroupNeural: "⭐ Neuronales (Microsoft Edge)", voiceGroupOther: "Voces del sistema", voiceEdgeHint: "Las voces neuronales de Microsoft Edge solo están disponibles en el navegador Edge. Abre esta página en Edge para elegir una, por ejemplo «Microsoft Dmitry Online (Natural)».", voiceSample: "Así suena la voz elegida." },
+            hi: { voiceSelectTitle: "पढ़ने की आवाज़", voiceGroupNeural: "⭐ न्यूरल आवाज़ें (Microsoft Edge)", voiceGroupOther: "सिस्टम आवाज़ें", voiceEdgeHint: "Microsoft Edge की न्यूरल आवाज़ें केवल Edge ब्राउज़र में उपलब्ध हैं। आवाज़ चुनने के लिए यह पेज Edge में खोलें — जैसे «Microsoft Dmitry Online (Natural)»।", voiceSample: "चुनी गई आवाज़ ऐसी सुनाई देती है।" },
+            ar: { voiceSelectTitle: "صوت القراءة", voiceGroupNeural: "⭐ أصوات عصبية (Microsoft Edge)", voiceGroupOther: "أصوات النظام", voiceEdgeHint: "الأصوات العصبية من Microsoft Edge متاحة فقط في متصفح Edge. افتح هذه الصفحة في Edge لاختيار صوت، مثل «Microsoft Dmitry Online (Natural)».", voiceSample: "هكذا يبدو الصوت المختار." },
+            fr: { voiceSelectTitle: "Voix de lecture", voiceGroupNeural: "⭐ Neuronales (Microsoft Edge)", voiceGroupOther: "Voix système", voiceEdgeHint: "Les voix neuronales de Microsoft Edge ne sont disponibles que dans le navigateur Edge. Ouvre cette page dans Edge pour en choisir une, par exemple « Microsoft Dmitry Online (Natural) ».", voiceSample: "Voici la voix sélectionnée." },
+            de: { voiceSelectTitle: "Vorlesestimme", voiceGroupNeural: "⭐ Neuronale Stimmen (Microsoft Edge)", voiceGroupOther: "Systemstimmen", voiceEdgeHint: "Die neuronalen Stimmen von Microsoft Edge gibt es nur im Edge-Browser. Öffne diese Seite in Edge, um eine zu wählen — zum Beispiel «Microsoft Dmitry Online (Natural)».", voiceSample: "So klingt die gewählte Stimme." },
+            ja: { voiceSelectTitle: "読み上げ音声", voiceGroupNeural: "⭐ ニューラル音声（Microsoft Edge）", voiceGroupOther: "システム音声", voiceEdgeHint: "Microsoft Edge のニューラル音声は Edge ブラウザでのみ利用できます。音声を選ぶにはこのページを Edge で開いてください（例：「Microsoft Dmitry Online (Natural)」）。", voiceSample: "選択した音声はこのように聞こえます。" },
+            pt: { voiceSelectTitle: "Voz de leitura", voiceGroupNeural: "⭐ Neurais (Microsoft Edge)", voiceGroupOther: "Vozes do sistema", voiceEdgeHint: "As vozes neurais do Microsoft Edge só existem no navegador Edge. Abra esta página no Edge para escolher uma — por exemplo «Microsoft Dmitry Online (Natural)».", voiceSample: "É assim que soa a voz escolhida." }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], VOICE_PICK_I18N[code] || VOICE_PICK_I18N.en));
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], VOICE_I18N[code] || VOICE_I18N.en));
 
         // Подписи кнопки микрофона: состояние записи видно и по иконке 🎤/🛑,
@@ -1714,11 +1773,126 @@
             return LANG === "zh" ? "zh-CN" : LANG === "ja" ? "ja-JP" : LANG === "ar" ? "ar-SA" : LANG === "hi" ? "hi-IN" : LANG;
         }
 
+        // ============ ВЫБОР ГОЛОСА (нейросетевые голоса Microsoft Edge) ============
+        // Edge отдаёт свои нейросетевые голоса через тот же Web Speech API,
+        // что и все остальные, — они видны в speechSynthesis.getVoices() под
+        // именами вида «Microsoft Dmitry Online (Natural) - Russian». Работают
+        // они только в Edge; Chrome и Firefox показывают свои системные голоса,
+        // и это нормально — селект общий, различается лишь список.
+        // Выбор запоминается; если он пуст, берём лучший голос под текущий язык.
+        let voiceName = localStorage.getItem("lenya_voice_name") || "";
+
+        // Нейросетевой ли голос. Отличаем именно по «Online (Natural)»: старые
+        // локальные голоса («Microsoft Irina Desktop») звучат заметно хуже и
+        // идут в списке отдельной группой.
+        function isNeuralVoice(v) {
+            return /natural/i.test(v.name || "");
+        }
+
+        function voiceMatchesLang(v, code) {
+            return (v.lang || "").toLowerCase().startsWith(code.toLowerCase());
+        }
+
+        // Лучший голос под язык: сначала нейросетевой Edge нужного языка, затем
+        // любой нейросетевой, затем просто подходящий по языку, затем первый
+        // попавшийся. Возвращает null, если список ещё не загружен.
+        function pickVoice() {
+            if (!window.speechSynthesis) return null;
+            const voices = speechSynthesis.getVoices() || [];
+            if (!voices.length) return null;
+            // Сохранённый голос уважаем: пользователь выбрал его сам.
+            if (voiceName) {
+                const saved = voices.find(v => v.name === voiceName);
+                if (saved) return saved;
+            }
+            const code = voiceLang();
+            return voices.find(v => isNeuralVoice(v) && voiceMatchesLang(v, code))
+                || voices.find(v => isNeuralVoice(v))
+                || voices.find(v => voiceMatchesLang(v, code))
+                || voices[0];
+        }
+
+        // Наполняет селект. Нейросетевые голоса Edge идут первыми отдельной
+        // группой: в Edge их больше двадцати, и без разделения нужный голос
+        // приходится искать глазами среди системных.
+        function fillVoiceSelect() {
+            const sel = document.getElementById("voiceSelect");
+            if (!sel || !window.speechSynthesis) return;
+            const voices = speechSynthesis.getVoices() || [];
+            // Edge и Chrome наполняют список асинхронно: первый вызов часто
+            // возвращает пустой массив, готовый список приходит позже.
+            if (!voices.length) return;
+            const code = voiceLang();
+            const neural = voices.filter(isNeuralVoice);
+            const other = voices.filter(v => !isNeuralVoice(v));
+            // Внутри группы — сначала голоса текущего языка, потом остальные.
+            const byLang = list => list.slice().sort((a, b) => {
+                const d = (voiceMatchesLang(a, code) ? 0 : 1) - (voiceMatchesLang(b, code) ? 0 : 1);
+                return d || a.name.localeCompare(b.name);
+            });
+            const addGroup = (label, list) => {
+                if (!list.length) return;
+                const g = document.createElement("optgroup");
+                g.label = label;
+                byLang(list).forEach(v => {
+                    const o = document.createElement("option");
+                    o.value = v.name;
+                    // Хвост «- Russian» в подписи только мешает читать список.
+                    o.textContent = v.name.replace(/\s+-\s+[^-]+$/, "");
+                    g.appendChild(o);
+                });
+                sel.appendChild(g);
+            };
+            const chosenBefore = voiceName || sel.value || "";
+            sel.innerHTML = "";
+            addGroup(neural.length ? t("voiceGroupNeural") : "", neural);
+            addGroup(t("voiceGroupOther"), other);
+            // Восстанавливаем выбор: сохранённый, иначе лучший под язык.
+            const chosen = (chosenBefore && voices.some(v => v.name === chosenBefore))
+                ? chosenBefore : ((pickVoice() || {}).name || "");
+            if (chosen) {
+                sel.value = chosen;
+                voiceName = chosen;
+            }
+            sel.title = t("voiceSelectTitle");
+            sel.classList.toggle("muted", !voiceEnabled);
+            // Подсказку «поставь Edge» показываем только когда нейросетевых
+            // голосов нет вовсе, то есть браузер не Edge.
+            const hint = document.getElementById("voiceHint");
+            if (!neural.length && !hint) {
+                const div = document.createElement("div");
+                div.id = "voiceHint";
+                div.className = "voice-hint";
+                div.textContent = t("voiceEdgeHint");
+                sel.parentNode.insertBefore(div, sel.nextSibling);
+            } else if (neural.length && hint) {
+                hint.remove();
+            }
+        }
+
+        function onVoiceChange() {
+            const sel = document.getElementById("voiceSelect");
+            if (!sel) return;
+            voiceName = sel.value || "";
+            localStorage.setItem("lenya_voice_name", voiceName);
+            // Короткая проба: без неё непонятно, что вообще изменилось.
+            if (voiceEnabled) speak(t("voiceSample"));
+        }
+
         function speak(text) {
             if (!voiceEnabled) return;
             try {
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = voiceLang();
+                const v = pickVoice();
+                if (v) {
+                    utterance.voice = v;
+                    // Язык берём у самого голоса: у нейросетевых Edge он точнее
+                    // («ru-RU»), чем наш короткий код, — иначе браузер иногда
+                    // подменяет выбранный голос системным.
+                    utterance.lang = v.lang || voiceLang();
+                } else {
+                    utterance.lang = voiceLang();
+                }
                 speechSynthesis.speak(utterance);
             } catch (e) {}
         }
@@ -1729,6 +1903,10 @@
             btn.textContent = voiceEnabled ? "🔊" : "🔇";
             btn.title = t(voiceEnabled ? "voiceOnTitle" : "voiceOffTitle");
             btn.classList.toggle("muted", !voiceEnabled);
+            // Селект гаснет вместе с кнопкой: иначе выглядит так, будто голос
+            // всё ещё звучит.
+            const sel = document.getElementById("voiceSelect");
+            if (sel) sel.classList.toggle("muted", !voiceEnabled);
         }
 
         function toggleVoice() {
@@ -1738,6 +1916,19 @@
             // Выключили во время чтения — обрываем фразу сразу, иначе она
             // договорит до конца, и кнопка будет выглядеть неработающей.
             if (!voiceEnabled && window.speechSynthesis) speechSynthesis.cancel();
+        }
+
+        // Список голосов приходит асинхронно, поэтому подписываемся на
+        // voiceschanged и дополнительно пробуем сразу и через секунду: в части
+        // сборок Edge событие не приходит вовсе, а список уже готов.
+        if (window.speechSynthesis) {
+            if (speechSynthesis.addEventListener) {
+                speechSynthesis.addEventListener("voiceschanged", fillVoiceSelect);
+            } else {
+                speechSynthesis.onvoiceschanged = fillVoiceSelect;
+            }
+            fillVoiceSelect();
+            setTimeout(fillVoiceSelect, 1000);
         }
 
         // ================= САЙТЫ (логины/пароли) =================
