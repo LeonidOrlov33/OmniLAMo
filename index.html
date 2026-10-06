@@ -850,6 +850,10 @@
                 <div class="input-row input-row-extra">
                     <button class="btn btn-task" onclick="location.href='tasks.html'" title="Добавить задание" data-i18n-title="addTaskTitle">📝</button>
                     <button class="btn btn-site" onclick="openSiteModal()" title="Добавить сайт" data-i18n-title="addSiteTitle">🔐</button>
+                    <!-- Слово-будильник: в фоне работает слушатель, который ждёт
+                         «Лама» / «ЛМА» / «LMA» и включает обычный ввод голосом.
+                         Состояние запоминается в localStorage. -->
+                    <button class="btn btn-mic" id="wakeBtn" onclick="toggleWake()" title="Голосовой ввод по слову «Лама»">🙉</button>
                     <button class="btn btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Озвучивать ответы">🔊</button>
                     <!-- Выбор голоса. В Edge список содержит нейросетевые голоса
                          («Microsoft Dmitry Online (Natural)»), в остальных
@@ -1289,6 +1293,22 @@
         };
         Object.keys(I18N).forEach(code => Object.assign(I18N[code], UPLOAD_I18N[code] || UPLOAD_I18N.en));
 
+        // Строки слова-будильника «Лама». Как и остальные наборы выше — отдельным
+        // блоком, чтобы десять языковых секций правились в одном месте.
+        const WAKE_I18N = {
+            ru: { wakeOffTitle: "Голосовой ввод по слову «Лама» — нажми, чтобы включить", wakeOnTitle: "Слушаю слово «Лама» — нажми, чтобы выключить", wakeDenied: "Нет доступа к микрофону — разреши его в настройках браузера." },
+            en: { wakeOffTitle: "Voice input by the word «Lama» — tap to turn on", wakeOnTitle: "Listening for «Lama» — tap to turn off", wakeDenied: "No microphone access — allow it in your browser settings." },
+            zh: { wakeOffTitle: "说「Лама」开启语音输入——点击启用", wakeOnTitle: "正在等待「Лама」——点击关闭", wakeDenied: "无法访问麦克风——请在浏览器设置中允许。" },
+            es: { wakeOffTitle: "Entrada de voz con la palabra «Lama»: toca para activar", wakeOnTitle: "Escuchando «Lama»: toca para desactivar", wakeDenied: "Sin acceso al micrófono: permítelo en los ajustes del navegador." },
+            hi: { wakeOffTitle: "「लामा」कहने पर आवाज़ इनपुट — चालू करने के लिए दबाएँ", wakeOnTitle: "「लामा」का इंतज़ार — बंद करने के लिए दबाएँ", wakeDenied: "माइक्रोफ़ोन तक पहुँच नहीं — ब्राउज़र सेटिंग में अनुमति दें।" },
+            ar: { wakeOffTitle: "الإدخال الصوتي بكلمة «لاما» — اضغط للتشغيل", wakeOnTitle: "في انتظار «لاما» — اضغط للإيقاف", wakeDenied: "لا وصول إلى الميكروفون — اسمح به في إعدادات المتصفح." },
+            fr: { wakeOffTitle: "Saisie vocale par le mot « Lama » — appuie pour activer", wakeOnTitle: "J'écoute « Lama » — appuie pour couper", wakeDenied: "Pas d'accès au micro — autorise-le dans les réglages du navigateur." },
+            de: { wakeOffTitle: "Spracheingabe per Wort „Lama“ — zum Einschalten tippen", wakeOnTitle: "Warte auf „Lama“ — zum Ausschalten tippen", wakeDenied: "Kein Mikrofonzugriff — erlaube ihn in den Browsereinstellungen." },
+            ja: { wakeOffTitle: "「ラマ」で音声入力 — タップでオン", wakeOnTitle: "「ラマ」を待機中 — タップでオフ", wakeDenied: "マイクにアクセスできません — ブラウザ設定で許可してください。" },
+            pt: { wakeOffTitle: "Entrada de voz com a palavra «Lama» — toque para ligar", wakeOnTitle: "Ouvindo «Lama» — toque para desligar", wakeDenied: "Sem acesso ao microfone — permita nas configurações do navegador." }
+        };
+        Object.keys(I18N).forEach(code => Object.assign(I18N[code], WAKE_I18N[code] || WAKE_I18N.en));
+
         let LANG = localStorage.getItem("lenya_lang") || "ru";
 
         function t(key) {
@@ -1322,6 +1342,9 @@
             // Подпись кнопки озвучки зависит от языка, а иконка и «погашенный»
             // вид — от самого состояния: обновляем и то, и другое.
             applyVoiceButton();
+            // То же для кнопки слова-будильника: подсказка берётся из языка,
+            // а подсветка — из состояния режима.
+            applyWakeButton();
         }
 
         function renderLangGrid() {
@@ -1656,6 +1679,10 @@
             micUnwatch();
             micPaint(false);
             micActive = false;
+            // Диктовка освободила микрофон — возвращаем слушателя слова.
+            // Через задержку: Chrome не даёт открыть новую сессию распознавания
+            // в тот же тик, в котором закрылась предыдущая.
+            wakeResume();
         }
 
         // Браузер не ответил ничем: ни текстом, ни ошибкой. Обрываем сессию
@@ -1705,6 +1732,19 @@
                 }
                 return;
             }
+
+            micStart();
+        }
+
+        // Запуск диктовки отдельной функцией: её же дёргает слово-будильник
+        // («Лама»), когда передаёт микрофон обычному вводу голосом.
+        function micStart() {
+            if (micActive) return;
+
+            // Слушатель слова уступает микрофон: Chrome держит только одну
+            // сессию распознавания на страницу. Глушим его здесь, а не только
+            // в обработчике «Ламы», — диктовку можно включить и кнопкой 🎤.
+            wakePause();
 
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SR) {
@@ -1774,6 +1814,197 @@
                 micDone = true;
                 addMsg(t("voiceError") + " (" + e.name + ")", "bot");
             }
+        }
+
+        // ============ СЛОВО-БУДИЛЬНИК «ЛАМА» ============
+        // В фоне работает отдельное распознавание: оно никуда не отправляет
+        // текст, а только ждёт «лама» / «лма» / «LMA». Услышав — уступает
+        // микрофон обычному вводу голосом и возвращается в фон, когда
+        // сообщение отправлено.
+        //
+        // Chrome держит только одну сессию распознавания на страницу, поэтому
+        // слушатель и диктовка не могут работать одновременно — микрофон
+        // передаётся строго по очереди.
+        let wakeEnabled = localStorage.getItem("lenya_wake") === "on";
+        let wakeRec = null;        // своё распознавание, отдельно от micRecognition
+        let wakeRunning = false;   // сессия слушателя открыта
+        let wakeWanted = false;    // режим включён и не на паузе
+        let wakeTimer = null;      // отложенный запуск (Chrome не любит мгновенный)
+        let wakeHandOver = false;  // услышали слово — сейчас начнём диктовку
+        let wakeHoldTimer = null;  // страховка на время озвучки ответа
+
+        // «Лама» распознаётся по-разному: «лама», «лма», «LMA» по буквам,
+        // «эл эм эй». Приводим строку к одному виду и ищем любой вариант.
+        function isWakeWord(text) {
+            const s = String(text || "").toLowerCase()
+                .replace(/ё/g, "е")
+                .replace(/[^a-zа-я0-9]/g, "");
+            if (!s) return false;
+            return /(лама|лма|lma|элэмэй|элэмей|элэма)/.test(s);
+        }
+
+        // Единственное место, где меняется вид кнопки слова-будильника.
+        function applyWakeButton() {
+            const btn = document.getElementById("wakeBtn");
+            if (!btn) return;
+            btn.classList.toggle("rec", wakeEnabled);
+            btn.textContent = wakeEnabled ? "👂" : "🙉";
+            btn.title = t(wakeEnabled ? "wakeOnTitle" : "wakeOffTitle");
+            btn.classList.toggle("muted", !wakeEnabled);
+        }
+
+        // Отложенный запуск слушателя. Задержка обязательна: мгновенный start()
+        // сразу после onend Chrome отвергает с InvalidStateError.
+        function wakeKick(delay) {
+            clearTimeout(wakeTimer);
+            if (!wakeEnabled || !wakeWanted || wakeRunning || micActive) return;
+            wakeTimer = setTimeout(wakeRun, delay === undefined ? 400 : delay);
+        }
+
+        function wakeRun() {
+            if (!wakeEnabled || !wakeWanted || wakeRunning || micActive) return;
+
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                // Без поддержки распознавания режим бессмысленен — выключаем,
+                // чтобы кнопка не горела впустую.
+                wakeEnabled = false;
+                localStorage.setItem("lenya_wake", "off");
+                applyWakeButton();
+                addMsg("❌ " + t("voiceUnsupported"), "bot");
+                return;
+            }
+
+            try {
+                if (!wakeRec) {
+                    wakeRec = new SR();
+                    wakeRec.continuous = true;
+                    wakeRec.interimResults = true;
+                    wakeRec.maxAlternatives = 1;
+
+                    wakeRec.onresult = (e) => {
+                        let text = "";
+                        for (let i = e.resultIndex; i < e.results.length; i++) {
+                            text += e.results[i][0].transcript;
+                        }
+                        if (!wakeHandOver && isWakeWord(text)) wakeHandToDictation();
+                    };
+                    wakeRec.onerror = (e) => {
+                        const code = e && e.error ? e.error : "unknown";
+                        wakeRunning = false;
+                        // «aborted» — наш собственный останов, не ошибка.
+                        if (code === "aborted") return;
+                        if (code === "not-allowed" || code === "service-not-allowed") {
+                            wakeEnabled = false;
+                            localStorage.setItem("lenya_wake", "off");
+                            applyWakeButton();
+                            addMsg("❌ " + t("wakeDenied"), "bot");
+                            return;
+                        }
+                        // no-speech и прочие концы сессии — слушаем дальше.
+                        wakeKick(600);
+                    };
+                    wakeRec.onend = () => {
+                        wakeRunning = false;
+                        if (wakeHandOver) {
+                            // Сессия слушателя закрылась — самое время открыть
+                            // диктовку: две сессии сразу Chrome не даёт.
+                            clearTimeout(wakeTimer);
+                            wakeHandOver = false;
+                            micStart();
+                            return;
+                        }
+                        wakeKick(400);
+                    };
+                }
+                wakeRec.lang = voiceLang();
+                wakeRunning = true;
+                wakeRec.start();
+            } catch (err) {
+                wakeRunning = false;
+                // Прошлая сессия ещё не закрылась — пробуем ещё раз позже.
+                if (err && err.name === "InvalidStateError") wakeKick(1200);
+            }
+        }
+
+        function wakeStop() {
+            clearTimeout(wakeTimer);
+            if (wakeRunning && wakeRec) {
+                try { wakeRec.abort(); } catch (e) {}
+            }
+            wakeRunning = false;
+        }
+
+        // Пауза: микрофон забрала диктовка или говорит синтезатор.
+        function wakePause() {
+            wakeWanted = false;
+            wakeStop();
+        }
+
+        function wakeResume() {
+            if (!wakeEnabled) return;
+            wakeWanted = true;
+            wakeKick(400);
+        }
+
+        // Передача микрофона от слушателя к диктовке. Ждём onend, а если он
+        // почему-то не придёт — начинаем диктовку по таймеру.
+        function wakeHandToDictation() {
+            wakeHandOver = true;
+            wakePause();
+            wakeTimer = setTimeout(() => {
+                if (wakeHandOver) {
+                    wakeHandOver = false;
+                    micStart();
+                }
+            }, 800);
+        }
+
+        function toggleWake() {
+            wakeEnabled = !wakeEnabled;
+            localStorage.setItem("lenya_wake", wakeEnabled ? "on" : "off");
+            applyWakeButton();
+            if (!wakeEnabled) {
+                wakePause();
+                return;
+            }
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                wakeEnabled = false;
+                localStorage.setItem("lenya_wake", "off");
+                applyWakeButton();
+                addMsg("❌ " + t("voiceUnsupported"), "bot");
+                return;
+            }
+            wakeResume();
+        }
+
+        // Пока синтезатор говорит, слушатель молчит: иначе бот услышит сам себя.
+        function wakeHold() {
+            wakePause();
+            clearTimeout(wakeHoldTimer);
+            // Страховка: если onend у фразы не придёт, вернём слушателя сами.
+            wakeHoldTimer = setTimeout(wakeRelease, 90000);
+        }
+
+        function wakeRelease() {
+            clearTimeout(wakeHoldTimer);
+            wakeHoldTimer = null;
+            if (!wakeEnabled) return;
+            wakeResume();
+        }
+
+        // Chrome не даёт запускать распознавание до первого касания страницы,
+        // поэтому включённый режим взводится на первом же жесте.
+        function armWakeOnFirstGesture() {
+            if (!wakeEnabled) return;
+            const arm = () => {
+                document.removeEventListener("pointerdown", arm, true);
+                document.removeEventListener("keydown", arm, true);
+                wakeResume();
+            };
+            document.addEventListener("pointerdown", arm, true);
+            document.addEventListener("keydown", arm, true);
         }
 
         // Единая проверка «озвучка разрешена»: speak() вызывается из четырёх
@@ -1961,7 +2192,11 @@
                     speechSynthesis.cancel();
                 }
                 const v = pickVoice();
-                splitForSpeech(clean, 220).forEach(part => {
+                // Пока бот говорит, слушатель слова молчит: иначе он услышит
+                // собственную озвучку и может сработать на ней же.
+                wakeHold();
+                const parts = splitForSpeech(clean, 220);
+                parts.forEach((part, i) => {
                     const utterance = new SpeechSynthesisUtterance(part);
                     if (v) {
                         utterance.voice = v;
@@ -1977,6 +2212,11 @@
                     // у нейросетевых она и так ровная, а сдвиг даёт «робота».
                     utterance.rate = 0.95;
                     utterance.pitch = 1;
+                    // По концу последней фразы возвращаем слушателя слова.
+                    if (i === parts.length - 1) {
+                        utterance.onend = wakeRelease;
+                        utterance.onerror = wakeRelease;
+                    }
                     speechSynthesis.speak(utterance);
                 });
             } catch (e) {}
@@ -2001,6 +2241,8 @@
             // Выключили во время чтения — обрываем фразу сразу, иначе она
             // договорит до конца, и кнопка будет выглядеть неработающей.
             if (!voiceEnabled && window.speechSynthesis) speechSynthesis.cancel();
+            // Озвучка выключена — слушатель слова больше не должен ждать её конца.
+            if (!voiceEnabled) wakeRelease();
         }
 
         // Список голосов приходит асинхронно, поэтому подписываемся на
@@ -2603,6 +2845,9 @@
         window.addEventListener("DOMContentLoaded", function() {
             applyLang(LANG);
             applyAuthMode();
+            // Если слово-будильник был включён в прошлый раз, взводим его на
+            // первом же касании: Chrome не даёт запускать распознавание раньше.
+            armWakeOnFirstGesture();
             if (apiKey && userName) {
                 show("chatScreen");
                 startSchedulerPolling();
