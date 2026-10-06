@@ -1388,12 +1388,22 @@
             area.scrollTop = area.scrollHeight;
         }
 
-        // Реплика из истории: вставляется вверх ленты, сразу после кнопки
-        // «показать раньше», чтобы старые сообщения не оказывались ниже новых.
-        function addMsgAtTop(text, sender, time) {
+        // Страница истории вставляется вверх ленты, сразу после кнопки
+        // «показать раньше».
+        //
+        // Вставляем её одним куском и в том порядке, в каком её отдал сервер.
+        // Раньше здесь была ошибка: страница вставлялась по одной реплике
+        // в цикле от начала, и каждая следующая ложилась НАД предыдущей. Из-за
+        // этого страница выходила перевёрнутой — вместо 1 2 3 4 5 сверху вниз
+        // получалось 5 4 3 2 1. DocumentFragment кладёт всю страницу за одно
+        // обращение к DOM, поэтому порядок сохраняется.
+        function addMsgsAtTop(msgs) {
             const area = document.getElementById("chatArea");
             const top = document.getElementById("chatTop");
-            area.insertBefore(buildMsg(text, sender, time), top.nextSibling);
+            const frag = document.createDocumentFragment();
+            msgs.forEach(m => frag.appendChild(
+                buildMsg(m.text, m.role === "bot" ? "bot" : "user", m.ts)));
+            area.insertBefore(frag, top ? top.nextSibling : area.firstChild);
         }
 
         function addTyping() {
@@ -2534,9 +2544,9 @@
                 const data = await res.json();
                 if (!data.success) { historyDone = true; setHistoryButton(""); return; }
                 const msgs = data.messages || [];
-                // Сервер отдаёт страницу в хронологическом порядке. Вставляем
-                // её сверху по одной реплике, чтобы порядок не перевернулся.
-                msgs.forEach(m => addMsgAtTop(m.text, m.role === "bot" ? "bot" : "user", m.ts));
+                // Сервер отдаёт страницу в хронологическом порядке (старые →
+                // новые) — вставляем её в ленту в том же порядке.
+                addMsgsAtTop(msgs);
                 if (msgs.length) oldestSeq = data.oldest_seq || msgs[0].seq || oldestSeq;
                 if (data.has_more) {
                     setHistoryButton(t("historyMore"), loadHistory);
