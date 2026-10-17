@@ -870,27 +870,44 @@ def admin_settings_save(data: AdminRequest):
 
 @app.post("/admin_settings_test")
 def admin_settings_test(data: AdminRequest):
-    """Пробный запрос к нейросети, чтобы проверить путь и ключ до сохранения."""
+    """Пробный запрос к нейросети: проверяет основной И резервный провайдеры.
+
+    Раньше здесь был прямой requests.post только к основному провайдеру, и
+    админка не могла узнать, что резерв вообще настроен и работает. Теперь
+    запрос идёт через общий механизм выбора провайдера, а в ответе видно, кто
+    именно ответил.
+
+    activate_on_quota=False — проверка не переключает сервис на резерв: одна
+    неудачная попытка не должна менять боевое состояние.
+    """
     if not is_admin(data.admin_password):
         return {"success": False, "error": "Неверный пароль"}
-    url = ai_endpoint()
-    if not url:
+    if not ai_endpoint() and not tools.ai_fallback_endpoint():
         return {"success": False, "error": "Не задан путь (AI base URL)"}
     try:
-        res = requests.post(
-            url,
-            headers={"Authorization": f"Bearer {SETTINGS.get('ai_api_key','')}", "Content-Type": "application/json"},
-            json={
-                "model": SETTINGS.get("ai_model", ""),
+        res = tools._ai_call(
+            {
                 "messages": [{"role": "user", "content": "Ответь одним словом: работает"}],
                 "max_tokens": 20,
             },
             timeout=30,
+            activate_on_quota=False,
         )
+        if res is None:
+            return {
+                "success": False,
+                "error": "Ни основной, ни резервный провайдер не ответили. "
+                         "Проверь путь, ключ и модель.",
+            }
         if res.status_code != 200:
             return {"success": False, "error": f"HTTP {res.status_code}: {res.text[:300]}"}
         answer = (res.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
-        return {"success": True, "answer": answer}
+        return {
+            "success": True,
+            "answer": answer,
+            "provider": "резервный" if getattr(res, "from_fallback", False) else "основной",
+            "model": getattr(res, "answered_model", ""),
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
