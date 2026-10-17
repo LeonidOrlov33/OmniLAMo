@@ -141,6 +141,17 @@ DEFAULT_SETTINGS = {
     "ai_base_url": os.getenv("AI_BASE_URL", "https://api.groq.com/openai/v1"),
     "ai_api_key": os.getenv("AI_API_KEY", GROQ_API_KEY),
     "ai_model": os.getenv("AI_MODEL", "llama-3.3-70b-versatile"),
+    # Резервный провайдер (OpenRouter). У бесплатных ключей есть суточная квота:
+    # когда она кончилась, основной провайдер отвечает 429 и чат замолкает до
+    # утра. Тогда все запросы уходят сюда — до наступления следующих суток
+    # (само переключение и его сброс — в _ai_call ниже).
+    # Ключ намеренно НЕ прописан в коде: его кладут в .env (AI_FALLBACK_API_KEY)
+    # или в settings.json, оба файла в .gitignore. Пустой ключ = резерва нет.
+    "ai_fallback_base_url": os.getenv("AI_FALLBACK_BASE_URL",
+                                      "https://openrouter.ai/api/v1"),
+    "ai_fallback_api_key": os.getenv("AI_FALLBACK_API_KEY", ""),
+    "ai_fallback_model": os.getenv("AI_FALLBACK_MODEL",
+                                   "cohere/north-mini-code:free"),
     "temperature": 0.7,
     "max_tokens": 500,
     "system_prompt": "Ты — OmniLAMo, личный ИИ-агент. Отвечай кратко, дружелюбно и по-русски.",
@@ -275,15 +286,35 @@ def update_settings(patch: dict):
     return SETTINGS, saved, rejected
 
 
+def _mask_key(key: str) -> str:
+    """Маска для ключа: показываем края, чтобы админ узнал свой ключ.
+
+    Целиком ключ в браузер не отдаём никогда — страница админки не должна
+    быть местом, откуда ключ можно скопировать.
+    """
+    key = key or ""
+    if len(key) > 12:
+        return f"{key[:6]}…{key[-4:]}"
+    return "*" * len(key)
+
+
 def public_settings():
     """Настройки для админки: ключ маскируется, пароль не отдаём."""
     key = SETTINGS.get("ai_api_key", "")
-    masked = f"{key[:6]}…{key[-4:]}" if len(key) > 12 else ("*" * len(key))
+    masked = _mask_key(key)
     return {
         "ai_base_url": SETTINGS.get("ai_base_url", ""),
         "ai_api_key_masked": masked,
         "ai_api_key_set": bool(key),
         "ai_model": SETTINGS.get("ai_model", ""),
+        # Резервный провайдер: в админке видно, задан ли он и не работаем ли мы
+        # сейчас на нём (после того как у основного кончилась суточная квота).
+        "ai_fallback_base_url": SETTINGS.get("ai_fallback_base_url", ""),
+        "ai_fallback_model": SETTINGS.get("ai_fallback_model", ""),
+        "ai_fallback_api_key_set": bool(SETTINGS.get("ai_fallback_api_key", "")),
+        "ai_fallback_api_key_masked": _mask_key(
+            SETTINGS.get("ai_fallback_api_key", "")),
+        "ai_fallback_active": ai_fallback_active(),
         "temperature": SETTINGS.get("temperature", 0.7),
         "max_tokens": SETTINGS.get("max_tokens", 500),
         "system_prompt": SETTINGS.get("system_prompt", ""),
@@ -744,37 +775,27 @@ def ai_summarize(titles, source: str) -> str:
     """Просит нейросеть пересказать заголовки. Если не вышло — вернёт пустую строку."""
     if not titles:
         return ""
-    url = ai_endpoint()
-    if not url:
-        return ""
     try:
-        res = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {SETTINGS.get('ai_api_key','')}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": SETTINGS.get("ai_model", ""),
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Ты пересказываешь новости. Кратко, по-русски, без выдумок. "
-                                   "Не добавляй фактов, которых нет в заголовках.",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Источник: {source}. Заголовки:\n"
-                                   + "\n".join(f"- {t}" for t in titles)
-                                   + "\n\nСделай короткую сводку (5-7 строк) по этим заголовкам.",
-                    },
-                ],
-                "temperature": 0.3,
-                "max_tokens": 400,
-            },
-            timeout=60,
-        )
-        if res.status_code == 200:
+        # _ai_call сам выберет основной или резервный провайдер и подставит
+        # модель — сводка новостей не должна пропадать из-за кончившейся квоты.
+        res = _ai_call({
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Ты пересказываешь новости. Кратко, по-русски, без выдумок. "
+                               "Не добавляй фактов, которых нет в заголовках.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Источник: {source}. Заголовки:\n"
+                               + "\n".join(f"- {t}" for t in titles)
+                               + "\n\nСделай короткую сводку (5-7 строк) по этим заголовкам.",
+                },
+            ],
+            "temperature": 0.3,
+            "max_tokens": 400,
+        }, timeout=60)
+        if res is not None and res.status_code == 200:
             data = res.json()
             return ((data.get("choices") or [{}])[0].get("message", {}) or {}).get("content") or ""
     except Exception as e:
@@ -2830,16 +2851,200 @@ def clean_old_messages():
         logger.error(f"clean_old: {e}")
 
 # -------------------------------------------------
-# МОЗГИ
+# МОЗГИ: ОСНОВНОЙ И РЕЗЕРВНЫЙ ПРОВАЙДЕР
 # -------------------------------------------------
-def ai_endpoint():
-    """Собирает полный URL /chat/completions из настроенного пути."""
-    base = (SETTINGS.get("ai_base_url") or "").strip().rstrip("/")
+# У бесплатных ключей есть суточная квота: когда она кончилась, провайдер
+# отвечает 429 и чат замолкает до утра. Чтобы бот вместо этого просто работал,
+# рядом с основным провайдером держим резервного (OpenRouter). Логика:
+#   * пока основной отвечает — работаем на нём;
+#   * поймали «квота исчерпана» — переключаемся на резерв и запоминаем дату;
+#   * до конца текущих суток резерв идёт первым: не тратим время на заведомо
+#     отклоняемые запросы;
+#   * наступили новые сутки — снова пробуем основной, у него квота сбросилась.
+# Состояние лежит в файле рядом с settings.json: иначе после перезапуска
+# контейнера на Render переключение пришлось бы ловить заново.
+AI_FALLBACK_STATE_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "ai_fallback_state.json"
+)
+_ai_fallback_lock = threading.RLock()
+_ai_fallback_state = {}   # {"active": True, "since": "2026-10-17", "reason": "..."}
+
+
+def _ai_today() -> str:
+    """Сегодняшняя дата строкой. По ней видно, что суточная квота сбросилась."""
+    return datetime.date.today().isoformat()
+
+
+def _ai_fallback_load() -> dict:
+    """Читает состояние переключения с диска (один раз, дальше — из памяти)."""
+    with _ai_fallback_lock:
+        if _ai_fallback_state:
+            return _ai_fallback_state
+        try:
+            if os.path.exists(AI_FALLBACK_STATE_FILE):
+                with open(AI_FALLBACK_STATE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    _ai_fallback_state.update(data)
+        except Exception as e:
+            logger.warning(f"Состояние резервного провайдера не прочитано: {e}")
+        return _ai_fallback_state
+
+
+def _ai_fallback_save() -> None:
+    """Пишет состояние на диск. Ошибка записи не должна ломать ответ."""
+    with _ai_fallback_lock:
+        try:
+            tmp = AI_FALLBACK_STATE_FILE + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(_ai_fallback_state, f, ensure_ascii=False)
+            os.replace(tmp, AI_FALLBACK_STATE_FILE)
+        except Exception as e:
+            logger.warning(f"Состояние резервного провайдера не сохранено: {e}")
+
+
+def ai_fallback_active() -> bool:
+    """Работаем ли сейчас на резервном провайдере.
+
+    Переключение живёт до конца суток: как только наступил новый день, флаг
+    снимается и первый запрос снова идёт на основной провайдер — его суточная
+    квота к этому моменту уже восстановилась.
+    """
+    state = _ai_fallback_load()
+    with _ai_fallback_lock:
+        if not state.get("active"):
+            return False
+        if state.get("since") == _ai_today():
+            return True
+        logger.info("Наступили новые сутки — возвращаюсь к основному провайдеру")
+        state.clear()
+        _ai_fallback_save()
+        return False
+
+
+def _ai_fallback_activate(reason: str) -> None:
+    """Запоминает, что основной провайдер кончился, и включает резерв до утра."""
+    state = _ai_fallback_load()
+    with _ai_fallback_lock:
+        if state.get("active") and state.get("since") == _ai_today():
+            return
+        state.clear()
+        state.update({"active": True, "since": _ai_today(), "reason": reason[:200]})
+        logger.warning(
+            f"Основной провайдер исчерпан ({reason[:120]}) — "
+            f"переключаюсь на резервный до следующих суток"
+        )
+        _ai_fallback_save()
+
+
+def _ai_endpoint_for(base: str) -> str:
+    """Собирает полный URL /chat/completions из базового пути провайдера."""
+    base = (base or "").strip().rstrip("/")
     if not base:
         return ""
     if base.endswith("/chat/completions"):
         return base
     return base + "/chat/completions"
+
+
+def ai_endpoint():
+    """Собирает полный URL /chat/completions из настроенного пути."""
+    return _ai_endpoint_for(SETTINGS.get("ai_base_url", ""))
+
+
+def ai_fallback_endpoint():
+    """Полный URL резервного провайдера."""
+    return _ai_endpoint_for(SETTINGS.get("ai_fallback_base_url", ""))
+
+
+def _ai_targets():
+    """Кого спрашивать и в каком порядке: [(url, key, model, is_fallback), ...]."""
+    primary = (ai_endpoint(), SETTINGS.get("ai_api_key", ""),
+               SETTINGS.get("ai_model", ""), False)
+    fallback = (ai_fallback_endpoint(), SETTINGS.get("ai_fallback_api_key", ""),
+                SETTINGS.get("ai_fallback_model", ""), True)
+    # Провайдер без ключа или модели — это не провайдер: пропускаем, иначе
+    # запрос уйдёт в пустоту и вернётся 401 вместо ответа.
+    targets = [t for t in (primary, fallback) if t[0] and t[1] and t[2]]
+    if len(targets) == 2 and ai_fallback_active():
+        return [targets[1], targets[0]]
+    return targets
+
+
+def ai_active_model() -> str:
+    """Модель, которая ответит на следующий запрос (для ключей кэша)."""
+    targets = _ai_targets()
+    return targets[0][2] if targets else SETTINGS.get("ai_model", "")
+
+
+# Что считаем «ключ кончился». Не только 429: часть провайдеров отвечает
+# 401/402, когда закончились кредиты, а в теле пишет про quota/credits.
+_AI_QUOTA_WORDS = ("quota", "rate limit", "rate_limit", "insufficient",
+                   "exhausted", "credit", "too many requests", "billing")
+_AI_QUOTA_CODES = (401, 402, 403, 429)
+
+
+def _ai_is_quota_error(res) -> bool:
+    """Похоже ли, что дело не в запросе, а в исчерпанной квоте ключа."""
+    if res is None:
+        return False
+    if res.status_code in _AI_QUOTA_CODES:
+        return True
+    body = (res.text or "")[:2000].lower()
+    return any(w in body for w in _AI_QUOTA_WORDS)
+
+
+def _ai_call(payload, timeout=60, activate_on_quota=True):
+    """POST к модели с автоматическим переходом на резервного провайдера.
+
+    Возвращает requests.Response последней попытки. Исключения сети не
+    пробрасывает: если не ответил никто, вернётся None, и вызывающий код
+    скажет об ошибке сам.
+
+    activate_on_quota=False — только попробовать, никого не переключать.
+    Нужно админке: кнопка «Проверить связь» не должна из-за одной неудачной
+    попытки переводить весь сервис на резерв.
+    """
+    targets = _ai_targets()
+    if not targets:
+        return None
+    last = None
+    for url, key, model, is_fallback in targets:
+        body = dict(payload)
+        body["model"] = model
+        headers = {"Authorization": f"Bearer {key}",
+                   "Content-Type": "application/json"}
+        if is_fallback:
+            # OpenRouter показывает эти два заголовка в статистике; на прочих
+            # провайдерах они безвредны, поэтому ставим только для резерва.
+            headers["HTTP-Referer"] = "https://omnilamo.onrender.com"
+            headers["X-Title"] = "OmniLAMo"
+        try:
+            res = requests.post(url, headers=headers, json=body, timeout=timeout)
+        except Exception as e:
+            logger.error(f"ИИ недоступен "
+                         f"({'резерв' if is_fallback else 'основной'}): {e}")
+            last = None
+            continue
+        if res.status_code == 200:
+            # Помечаем, кто именно ответил: админке это нужно, чтобы честно
+            # написать «ответил резерв», а не гадать по настройкам.
+            res.from_fallback = is_fallback
+            res.answered_model = model
+            return res
+        if _ai_is_quota_error(res):
+            if not is_fallback and activate_on_quota:
+                _ai_fallback_activate(res.text or str(res.status_code))
+            logger.warning(
+                f"ИИ {res.status_code} на "
+                f"{'резерве' if is_fallback else 'основном'} — пробую дальше"
+            )
+            last = res
+            continue
+        # Ошибка не про квоту (например, модель не умеет tools) — отдаём как
+        # есть, пусть вызывающий код решает, что с ней делать.
+        return res
+    return last
 
 
 # -------------------------------------------------
@@ -3451,8 +3656,12 @@ def run_ai_tool(name: str, args: dict, api_key: str = "") -> str:
 
 
 def ai_ready() -> bool:
-    """Настроена ли нейросеть: есть путь, ключ и модель."""
-    return bool(ai_endpoint() and SETTINGS.get("ai_api_key") and SETTINGS.get("ai_model"))
+    """Настроена ли нейросеть: есть хотя бы один рабочий провайдер.
+
+    Резервный провайдер считается наравне с основным: если ключ основного
+    забыли прописать, а резервный задан — чат должен работать.
+    """
+    return bool(_ai_targets())
 
 
 def strip_reasoning(answer):
@@ -3494,11 +3703,12 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
     Задания кэшировать нельзя: повторяющееся дело («проверь дневник») должно
     каждый раз реально ходить на сайт, а не отдавать вчерашний ответ из кэша.
     """
-    url = ai_endpoint()
-    key = SETTINGS.get("ai_api_key", "")
-    model = SETTINGS.get("ai_model", "")
     if not ai_ready():
         return "Нейросеть не настроена: открой админку и укажи путь, ключ и модель"
+    # Модель, которая реально ответит. При активном резерве это резервная
+    # модель, поэтому ключ кэша обязан её учитывать: иначе ответ одной модели
+    # отдавался бы как ответ другой.
+    model = ai_active_model()
 
     # Кэш учитывает модель И пользователя: без api_key ответ одного клиента
     # отдавался другому (в кэше лежали чужие данные, включая результаты
@@ -3520,7 +3730,6 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
         if files_hint:
             system_prompt = f"{system_prompt}\n\n{files_hint}"
 
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     # Для задания берём другую инструкцию: модель должна выполнить поручение,
     # а не отвечать на него как на обычную реплику в чате.
     tool_prompt = AI_TASK_PROMPT if as_task else AI_TOOL_PROMPT
@@ -3542,7 +3751,7 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
             messages.append({"role": "assistant", "content": turn["a"]})
     messages.append({"role": "user", "content": user_message})
     payload = {
-        "model": model,
+        # model подставит _ai_call — свой для каждого провайдера.
         "messages": messages,
         "temperature": SETTINGS.get("temperature", 0.7),
         "max_tokens": SETTINGS.get("max_tokens", 500),
@@ -3551,18 +3760,24 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
     }
 
     def _post(body):
-        return requests.post(url, headers=headers, json=body, timeout=60)
+        # _ai_call сам переберёт основной и резервный провайдеры: если у
+        # основного кончилась суточная квота, запрос уйдёт на резервный.
+        return _ai_call(body, timeout=60)
 
     try:
         res = _post(payload)
+        if res is None:
+            return "Нейросеть недоступна: не удалось связаться ни с одним провайдером"
 
-        # Часть локальных моделей не умеет tools и отвечает 400. Тогда просто
+        # Часть моделей не умеет tools и отвечает 400. Тогда просто
         # повторяем без инструментов — обычный чат, как было раньше.
         if res.status_code == 400 and "tool" in res.text.lower():
             logger.warning("Модель не поддерживает tools — работаю без инструментов")
             payload.pop("tools", None)
             payload.pop("tool_choice", None)
             res = _post(payload)
+            if res is None:
+                return "Нейросеть недоступна: не удалось связаться ни с одним провайдером"
 
         # Счётчик одинаковых вызовов: локальная модель умеет зацикливаться на
         # одном инструменте («открой …» → тот же ответ → снова «открой …»),
@@ -3618,6 +3833,8 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
                                  "tool_call_id": call.get("id") or name,
                                  "content": result[:8000]})
             res = _post(payload)
+            if res is None:
+                return "Нейросеть недоступна: не удалось связаться ни с одним провайдером"
 
         return "Слишком много шагов с инструментами — остановился"
     except Exception as e:
@@ -3651,9 +3868,6 @@ cheat_cache = {}
 
 def cheat_sheet(topic: str) -> str:
     """Краткая шпаргалка по теме: формулы и ключевые тезисы без «воды»."""
-    url = ai_endpoint()
-    key = SETTINGS.get("ai_api_key", "")
-    model = SETTINGS.get("ai_model", "")
     if not ai_ready():
         return "Нейросеть не настроена: открой админку и укажи путь, ключ и модель"
 
@@ -3661,13 +3875,14 @@ def cheat_sheet(topic: str) -> str:
     if not topic:
         return "Напиши тему — например «тригонометрия» или «Великая Отечественная война»"
 
+    # Кэш привязан к модели, которая реально ответит: при активном резерве
+    # это резервная модель, и её ответ нельзя выдавать за ответ основной.
+    model = ai_active_model()
     cache_key = hash_text(f"cheat|{model}|{topic.lower()}")
     if cache_key in cheat_cache:
         return cheat_cache[cache_key]
 
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     payload = {
-        "model": model,
         "messages": [
             {"role": "system", "content": CHEAT_SHEET_PROMPT},
             {"role": "user", "content": topic},
@@ -3678,7 +3893,10 @@ def cheat_sheet(topic: str) -> str:
         "max_tokens": 1200,
     }
     try:
-        res = requests.post(url, headers=headers, json=payload, timeout=60)
+        res = _ai_call(payload, timeout=60)
+        if res is None:
+            return ("Нейросеть недоступна: не удалось связаться "
+                    "ни с одним провайдером")
         if res.status_code != 200:
             logger.error(f"AI cheatsheet {res.status_code}: {res.text[:300]}")
             return f"Ошибка ИИ ({res.status_code}): {res.text[:200]}"
