@@ -93,6 +93,24 @@
             <label for="model">Модель</label>
             <input type="text" id="model" placeholder="llama-3.3-70b-versatile">
 
+            <h4 style="margin:18px 0 6px">🛟 Резервный провайдер (необязательно)</h4>
+            <div class="hint">
+                Если у основного кончится суточная квота (429/402) или он не ответит,
+                сервер сам переключится на резерв и вернётся к основному на следующий день.
+                Пустые поля означают «резерва нет».
+            </div>
+            <div id="fallbackStatus" class="hint"></div>
+
+            <label for="fallbackBaseUrl">Резервный путь (Base URL)</label>
+            <input type="text" id="fallbackBaseUrl" placeholder="https://openrouter.ai/api/v1">
+
+            <label for="fallbackApiKey">Резервный API-ключ</label>
+            <input type="password" id="fallbackApiKey" placeholder="Оставь пустым, чтобы не менять">
+            <div class="hint" id="fallbackApiKeyHint">Текущий: —</div>
+
+            <label for="fallbackModel">Резервная модель</label>
+            <input type="text" id="fallbackModel" placeholder="meta-llama/llama-3.3-70b-instruct:free">
+
             <div class="row">
                 <div>
                     <label for="temperature">Температура</label>
@@ -213,6 +231,20 @@
         document.getElementById("apiKeyHint").textContent =
             "Текущий: " + (s.ai_api_key_set ? s.ai_api_key_masked : "не задан") +
             " — пустое поле оставит его без изменений.";
+
+        // Резервный провайдер
+        document.getElementById("fallbackBaseUrl").value = s.ai_fallback_base_url || "";
+        document.getElementById("fallbackApiKey").value = "";
+        document.getElementById("fallbackModel").value = s.ai_fallback_model || "";
+        document.getElementById("fallbackApiKeyHint").textContent =
+            "Текущий: " + (s.ai_fallback_api_key_set ? s.ai_fallback_api_key_masked : "не задан") +
+            " — пустое поле оставит его без изменений.";
+        // Если резерв уже включился, админ должен видеть, что запросы идут не туда,
+        // где он думает: иначе «почему отвечает другая модель» остаётся загадкой.
+        document.getElementById("fallbackStatus").textContent = s.ai_fallback_active
+            ? "⚠️ Сейчас работаем на резервном провайдере (основной исчерпал квоту). Вернёмся к основному на следующий день."
+            : (s.ai_fallback_base_url ? "Резерв настроен и ждёт." : "Резерв не настроен.");
+
         document.getElementById("settingsFileHint").textContent = "Файл настроек: " + s.settings_file;
     }
 
@@ -231,6 +263,9 @@
             ai_base_url: document.getElementById("baseUrl").value.trim(),
             ai_api_key: document.getElementById("apiKey").value.trim(),
             ai_model: document.getElementById("model").value.trim(),
+            ai_fallback_base_url: document.getElementById("fallbackBaseUrl").value.trim(),
+            ai_fallback_api_key: document.getElementById("fallbackApiKey").value.trim(),
+            ai_fallback_model: document.getElementById("fallbackModel").value.trim(),
             temperature: document.getElementById("temperature").value,
             max_tokens: document.getElementById("maxTokens").value,
             system_prompt: document.getElementById("systemPrompt").value.trim()
@@ -257,8 +292,13 @@
         })
             .then(r => r.json())
             .then(data => {
-                if (data.success) note("✅ Нейросеть ответила: " + (data.answer || "(пусто)"), false);
-                else note("❌ " + (data.error || "Нет ответа"), true);
+                if (data.success) {
+                    // Пишем, кто именно ответил: иначе непонятно, почему «отвечает
+                    // другая модель» — это резерв подхватил, пока основной без квоты.
+                    note("✅ Ответил " + (data.provider || "провайдер") +
+                         " (" + (data.model || "модель не указана") + "): " +
+                         (data.answer || "(пусто)"), false);
+                } else note("❌ " + (data.error || "Нет ответа"), true);
             })
             .catch(() => note("❌ Сервер недоступен", true));
     }
