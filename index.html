@@ -1488,7 +1488,7 @@
         function readAuthFields() {
             const name = document.getElementById("nameInput").value.trim();
             const password = document.getElementById("passwordInput").value;
-            if (!name) { alert(t("enterName")); return null; }
+            if (name.length < 2 || name.length > 20) { alert("Имя должно быть от 2 до 20 символов"); return null; }
             if (password.length < 6) {
                 alert("Пароль должен быть не короче 6 символов");
                 return null;
@@ -1509,7 +1509,7 @@
                 if (data.success) {
                     enterChat(data.name || fields.name, data.api_key);
                 } else {
-                    alert(data.error || t("regError"));
+                    alert((data.detail && data.detail[0] && data.detail[0].msg) || data.error || t("regError"));
                 }
             } catch (e) {
                 alert(t("serverDown"));
@@ -1529,7 +1529,7 @@
                 if (data.success) {
                     enterChat(data.name || fields.name, data.api_key);
                 } else {
-                    alert(data.error || "Неверный ник или пароль");
+                    alert((data.detail && data.detail[0] && data.detail[0].msg) || data.error || "Неверный ник или пароль");
                 }
             } catch (e) {
                 alert(t("serverDown"));
