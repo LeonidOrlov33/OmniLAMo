@@ -172,3 +172,22 @@ class AdminRequest(BaseModel):
     api_key: str = ""
     days: int = 30
     patch: dict = {}
+# ============================================
+# ВИРТУАЛЬНЫЙ ЁЖИК
+# ============================================
+
+class HedgehogRequest(BaseModel):
+    api_key: str = API_KEY_FIELD
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000
+    )
+
+    @validator("text")
+    def validate_hedgehog_text(cls, v):
+        return v.strip()
+
+
+class HedgehogActivityRequest(BaseModel):
+    api_key: str = API_KEY_FIELD
