@@ -1,0 +1,224 @@
+
+/* ===========================
+   ВИРТУАЛЬНЫЙ ЁЖИК
+   =========================== */
+
+#hedgehog-launcher {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: 1px solid #00cfff;
+    background: radial-gradient(circle at 35% 30%, #183c5d, #080d23 70%);
+    box-shadow: 0 0 28px rgba(0, 207, 255, .35);
+    color: white;
+    font-size: 38px;
+    cursor: pointer;
+    z-index: 5000;
+    display: none;
+}
+
+#hedgehog-launcher:hover {
+    transform: scale(1.07);
+}
+
+#hedgehog-room {
+    position: fixed;
+    inset: 0;
+    z-index: 6000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 4, 18, .78);
+    backdrop-filter: blur(8px);
+}
+
+#hedgehog-room.open {
+    display: flex;
+}
+
+.hedgehog-card {
+    width: min(92vw, 760px);
+    height: min(86vh, 680px);
+    border-radius: 28px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 207, 255, .55);
+    background:
+        radial-gradient(circle at 75% 18%, rgba(112, 55, 255, .18), transparent 30%),
+        linear-gradient(180deg, #101b39, #090b1d);
+    box-shadow: 0 0 50px rgba(0, 207, 255, .2);
+    position: relative;
+}
+
+.hedgehog-topbar {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(0, 207, 255, .25);
+}
+
+.hedgehog-name {
+    font-size: 21px;
+    font-weight: 700;
+}
+
+#hedgehog-close {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid #00cfff;
+    background: transparent;
+    color: white;
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.hedgehog-scene {
+    height: calc(100% - 64px);
+    position: relative;
+    overflow: hidden;
+    background:
+        linear-gradient(rgba(0, 207, 255, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 207, 255, .04) 1px, transparent 1px),
+        linear-gradient(180deg, #151d3d 0%, #10152c 64%, #0b0d19 65%);
+    background-size: 40px 40px, 40px 40px, 100% 100%;
+}
+
+.hedgehog-window {
+    position: absolute;
+    top: 42px;
+    left: 52px;
+    width: 130px;
+    height: 105px;
+    border: 8px solid #26395c;
+    background: radial-gradient(circle at 60% 30%, #194b79, #071222);
+    box-shadow: inset 0 0 24px #001326;
+}
+
+.hedgehog-window::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    background: #26395c;
+    transform: translateX(-50%);
+}
+
+.hedgehog-cabinet {
+    position: absolute;
+    right: 60px;
+    bottom: 80px;
+    width: 145px;
+    height: 245px;
+    border: 5px solid #553a2b;
+    border-radius: 10px 10px 2px 2px;
+    background: linear-gradient(90deg, #70442d 49%, #3e251c 50%);
+    box-shadow: inset 0 0 30px rgba(0,0,0,.35);
+}
+
+.hedgehog-cabinet::after {
+    content: "▣";
+    position: absolute;
+    color: #d7a95e;
+    font-size: 25px;
+    left: 50%;
+    top: 45%;
+    transform: translate(-50%, -50%);
+}
+
+#hedgehog-character {
+    position: absolute;
+    left: 50%;
+    bottom: 82px;
+    transform: translateX(-50%);
+    font-size: 150px;
+    line-height: 1;
+    filter: drop-shadow(0 15px 15px rgba(0,0,0,.45));
+    transition: left .8s ease, transform .3s ease;
+    user-select: none;
+}
+
+#hedgehog-character.thinking {
+    animation: hedgehog-thinking 1s ease-in-out infinite;
+}
+
+#hedgehog-character.talking {
+    animation: hedgehog-talking .28s ease-in-out infinite alternate;
+}
+
+#hedgehog-character.sleeping {
+    animation: hedgehog-sleep 2s ease-in-out infinite;
+}
+
+#hedgehog-character.searching {
+    left: calc(100% - 180px);
+}
+
+#hedgehog-character.eating {
+    animation: hedgehog-eating .35s ease-in-out infinite alternate;
+}
+
+@keyframes hedgehog-thinking {
+    50% { transform: translateX(-50%) translateY(-8px) rotate(-4deg); }
+}
+
+@keyframes hedgehog-talking {
+    to { transform: translateX(-50%) scale(1.06) translateY(-4px); }
+}
+
+@keyframes hedgehog-sleep {
+    50% { transform: translateX(-50%) translateY(8px) rotate(-5deg); }
+}
+
+@keyframes hedgehog-eating {
+    to { transform: translateX(-50%) scale(1.04) rotate(2deg); }
+}
+
+#hedgehog-root {
+    position: absolute;
+    left: 50%;
+    bottom: 58px;
+    transform: translateX(-50%);
+    font-size: 42px;
+    display: none;
+}
+
+#hedgehog-root.show {
+    display: block;
+}
+
+#hedgehog-mic {
+    position: absolute;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 1px solid #00cfff;
+    background: linear-gradient(135deg, #00a8ff, #8a2cff);
+    color: white;
+    font-size: 30px;
+    cursor: pointer;
+    box-shadow: 0 0 25px rgba(0, 207, 255, .4);
+}
+
+#hedgehog-mic.listening {
+    animation: mic-pulse .8s infinite;
+}
+
+@keyframes mic-pulse {
+    50% { transform: translateX(-50%) scale(1.13); }
+}
+
+@media (max-width: 600px) {
+    .hedgehog-card { width: 100vw; height: 100vh; border-radius: 0; }
+    .hedgehog-cabinet { right: 22px; }
+    .hedgehog-window { left: 22px; }
+}
