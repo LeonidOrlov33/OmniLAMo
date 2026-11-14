@@ -37,8 +37,10 @@ from schemas import (
     CompleteTaskRequest, DeleteCredentialsRequest, DownloadRequest,
     FetchUrlRequest, HistoryRequest, LoginRequest, NewsRequest,
     RegisterRequest, RememberRequest, SaveCredentialsRequest, UploadRequest,
+    HedgehogRequest, HedgehogActivityRequest,
 )
 from schemas import MAX_UPLOAD_BYTES
+from hedgehog_brain import hedgehog_brain
 # Функции и константы движка.
 from tools import (
     add_task, ai_endpoint, ai_summarize, ask_ai, browser_headers,
@@ -403,6 +405,60 @@ def ask(data: AskRequest):
     answer = ask_ai(user["name"], data.text, data.api_key)
     mark_queue_done(data.api_key, answer)
     return _answer(data.api_key, answer)
+
+
+# ============================================
+# ВИРТУАЛЬНЫЙ ЁЖИК
+# ============================================
+
+@app.post("/hedgehog")
+def talk_to_hedgehog(data: HedgehogRequest):
+    if not rate_limit(
+        f"hedgehog_{data.api_key}",
+        max_requests=15,
+        window_seconds=60,
+    ):
+        return {"success": False, "error": "Слишком часто"}
+
+    user = get_user(data.api_key)
+
+    if not user:
+        return {"success": False, "error": "Неверный ключ"}
+
+    try:
+        answer = hedgehog_brain.process_message(
+            api_key=data.api_key,
+            user_name=user["name"],
+            user_message=data.text,
+            ask_ai_function=ask_ai,
+        )
+
+        return {
+            "success": True,
+            "answer": answer,
+            "state": hedgehog_brain.get_state(data.api_key),
+        }
+
+    except Exception as e:
+        logger.error(f"Ошибка ёжика: {e}")
+        return {
+            "success": False,
+            "error": "Ёжик временно задумался",
+        }
+
+
+@app.post("/hedgehog/activity")
+def get_hedgehog_activity(data: HedgehogActivityRequest):
+    if not get_user(data.api_key):
+        return {"success": False, "error": "Неверный ключ"}
+
+    action = hedgehog_brain.random_activity(data.api_key)
+
+    return {
+        "success": True,
+        "action": action,
+    }
+
 
 @app.post("/get_updates")
 def get_updates(data: ApiKeyRequest):
