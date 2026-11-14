@@ -2871,5 +2871,29 @@
             });
         });
     </script>
+
+    <!-- ВИРТУАЛЬНЫЙ ЁЖИК -->
+    <button id="hedgehog-launcher" type="button" aria-label="Открыть ёжика">🦔</button>
+
+    <div id="hedgehog-room" aria-hidden="true">
+        <div class="hedgehog-card">
+            <div class="hedgehog-topbar">
+                <div class="hedgehog-name">🦔 Ёжик</div>
+                <button id="hedgehog-close" type="button" aria-label="Закрыть">×</button>
+            </div>
+
+            <div class="hedgehog-scene">
+                <div class="hedgehog-window"></div>
+                <div class="hedgehog-cabinet"></div>
+                <div id="hedgehog-root">🥕</div>
+                <div id="hedgehog-character">🦔</div>
+                <button id="hedgehog-mic" type="button" aria-label="Говорить с ёжиком">🎤</button>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="/hedgehog.css">
+    <script src="/hedgehog.js"></script>
+
 </body>
 </html>
