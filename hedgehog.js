@@ -1,22 +1,27 @@
-
 /* ===========================
-   ВИРТУАЛЬНЫЙ ЁЖИК
+   ВИРТУАЛЬНЫЙ ЁЖИК — отдельная страница
    =========================== */
 
 (function () {
-    const launcher = document.getElementById("hedgehog-launcher");
+    "use strict";
+
     const room = document.getElementById("hedgehog-room");
-    const closeButton = document.getElementById("hedgehog-close");
+    const backButton = document.getElementById("hedgehog-back");
     const micButton = document.getElementById("hedgehog-mic");
     const character = document.getElementById("hedgehog-character");
     const root = document.getElementById("hedgehog-root");
+
+    // Не запускаем код на странице, если нужных элементов нет.
+    if (!room || !backButton || !micButton || !character || !root) {
+        return;
+    }
 
     let recognition = null;
     let activityTimer = null;
     let speaking = false;
 
     function currentApiKey() {
-        return window.apiKey || localStorage.getItem("lenya_api_key") || "";
+        return localStorage.getItem("lenya_api_key") || "";
     }
 
     function setState(state) {
@@ -36,11 +41,13 @@
 
     function speak(text) {
         if (!("speechSynthesis" in window)) {
+            console.warn("В браузере нет синтеза речи.");
+            setState("idle");
             return;
         }
 
         speaking = true;
-        speechSynthesis.cancel();
+        window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = "ru-RU";
@@ -59,13 +66,14 @@
             setState("idle");
         };
 
-        speechSynthesis.speak(utterance);
+        window.speechSynthesis.speak(utterance);
     }
 
     async function sendToHedgehog(text) {
         const key = currentApiKey();
 
         if (!key) {
+            alert("Сначала войди в OmniLAMo, потом можно будет разговаривать с ёжиком.");
             setState("idle");
             return;
         }
@@ -84,9 +92,10 @@
 
             const data = await response.json();
 
-            if (data.success && data.answer) {
+            if (response.ok && data.success && data.answer) {
                 speak(data.answer);
             } else {
+                console.warn("Ёжик не ответил:", data);
                 setState("idle");
             }
         } catch (error) {
@@ -104,8 +113,16 @@
             return;
         }
 
+        if (recognition) {
+            try {
+                recognition.abort();
+            } catch (error) {
+                // Ничего страшного: создадим новый объект ниже.
+            }
+        }
+
         if (speaking) {
-            speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
             speaking = false;
         }
 
@@ -113,6 +130,7 @@
         recognition.lang = "ru-RU";
         recognition.interimResults = false;
         recognition.continuous = false;
+        recognition.maxAlternatives = 1;
 
         recognition.onstart = function () {
             micButton.classList.add("listening");
@@ -120,8 +138,12 @@
         };
 
         recognition.onresult = function (event) {
-            const text = event.results[0][0].transcript;
-            sendToHedgehog(text);
+            const text = event.results[0][0].transcript.trim();
+            if (text) {
+                sendToHedgehog(text);
+            } else {
+                setState("idle");
+            }
         };
 
         recognition.onerror = function (event) {
@@ -131,13 +153,20 @@
 
         recognition.onend = function () {
             micButton.classList.remove("listening");
+            recognition = null;
         };
 
-        recognition.start();
+        try {
+            recognition.start();
+        } catch (error) {
+            console.warn("Не удалось запустить микрофон:", error);
+            micButton.classList.remove("listening");
+            setState("idle");
+        }
     }
 
     async function randomActivity() {
-        if (!room.classList.contains("open") || speaking) return;
+        if (speaking || recognition) return;
 
         const key = currentApiKey();
         if (!key) return;
@@ -151,12 +180,14 @@
 
             const data = await response.json();
 
-            if (data.success && data.action) {
+            if (response.ok && data.success && data.action) {
                 setState(data.action);
 
                 if (data.action !== "idle") {
-                    setTimeout(function () {
-                        if (!speaking) setState("idle");
+                    window.setTimeout(function () {
+                        if (!speaking && !recognition) {
+                            setState("idle");
+                        }
                     }, 5000);
                 }
             }
@@ -165,49 +196,46 @@
         }
     }
 
-    function openRoom() {
-        room.classList.add("open");
-        setState("idle");
+    function startActivityTimer() {
+        window.clearInterval(activityTimer);
 
-        clearInterval(activityTimer);
-        activityTimer = setInterval(function () {
-            // Действие выбирается не каждую секунду, а редко.
+        activityTimer = window.setInterval(function () {
+            // Редко выбираем действие, чтобы ёжик не суетился постоянно.
             if (Math.random() < 0.35) {
                 randomActivity();
             }
         }, 12000);
     }
 
-    function closeRoom() {
-        room.classList.remove("open");
-        clearInterval(activityTimer);
-        speechSynthesis.cancel();
+    function stopEverything() {
+        window.clearInterval(activityTimer);
+
+        if (recognition) {
+            try {
+                recognition.abort();
+            } catch (error) {
+                // Игнорируем ошибку остановки.
+            }
+            recognition = null;
+        }
+
+        if ("speechSynthesis" in window) {
+            window.speechSynthesis.cancel();
+        }
+
         speaking = false;
         setState("idle");
     }
 
-    launcher.addEventListener("click", openRoom);
-    closeButton.addEventListener("click", closeRoom);
+    backButton.addEventListener("click", function () {
+        stopEverything();
+        window.location.href = "/index.html";
+    });
+
     micButton.addEventListener("click", startRecognition);
 
-    // Показываем кнопку, когда пользователь находится в основном чате.
-    function updateLauncher() {
-        const chatScreen = document.getElementById("chatScreen");
-        if (!chatScreen) return;
+    window.addEventListener("beforeunload", stopEverything);
 
-        const visible = getComputedStyle(chatScreen).display !== "none";
-        launcher.style.display = visible ? "block" : "none";
-    }
-
-    const observer = new MutationObserver(updateLauncher);
-    const chatScreen = document.getElementById("chatScreen");
-
-    if (chatScreen) {
-        observer.observe(chatScreen, {
-            attributes: true,
-            attributeFilter: ["style", "class"]
-        });
-    }
-
-    updateLauncher();
+    setState("idle");
+    startActivityTimer();
 })();

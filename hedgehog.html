@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ёжик — OmniLAMo</title>
+    <link rel="stylesheet" href="/hedgehog.css">
+</head>
+<body class="hedgehog-page">
+    <main id="hedgehog-room" class="open" aria-label="Комната виртуального ёжика">
+        <section class="hedgehog-card">
+            <header class="hedgehog-topbar">
+                <button id="hedgehog-back" type="button" aria-label="Вернуться в OmniLAMo">←</button>
+                <div class="hedgehog-name">🦔 Ёжик</div>
+                <div class="hedgehog-topbar-spacer" aria-hidden="true"></div>
+            </header>
+
+            <div class="hedgehog-scene">
+                <div class="hedgehog-window" aria-hidden="true"></div>
+                <div class="hedgehog-cabinet" aria-hidden="true"></div>
+                <div id="hedgehog-root" aria-hidden="true">🥕</div>
+                <div id="hedgehog-character" aria-label="Виртуальный ёжик">🦔</div>
+
+                <button id="hedgehog-mic" type="button" aria-label="Говорить с ёжиком">🎤</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="/hedgehog.js"></script>
+</body>
+</html>

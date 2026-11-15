@@ -865,6 +865,7 @@
                     <button class="btn btn-cheat" onclick="openCheatModal()" title="Шпаргалка по теме" data-i18n-title="cheatTitle">📄</button>
                     <button class="btn btn-download" onclick="openDownloadModal()" title="Скачать файл по ссылке" data-i18n-title="dlTitle">📥</button>
                     <button class="btn btn-upload" id="uploadBtn" onclick="pickFile()" title="Загрузить файл с устройства" data-i18n-title="upTitle">📎</button>
+                    <button class="btn" id="hedgehogPageBtn" type="button" onclick="window.location.href='/hedgehog.html'" title="Открыть комнату ёжика" aria-label="Открыть комнату ёжика">🦔</button>
                     <input type="file" id="fileInput" hidden onchange="onFilePicked()">
                 </div>
             </div>
@@ -2872,28 +2873,6 @@
         });
     </script>
 
-    <!-- ВИРТУАЛЬНЫЙ ЁЖИК -->
-    <button id="hedgehog-launcher" type="button" aria-label="Открыть ёжика">🦔</button>
-
-    <div id="hedgehog-room" aria-hidden="true">
-        <div class="hedgehog-card">
-            <div class="hedgehog-topbar">
-                <div class="hedgehog-name">🦔 Ёжик</div>
-                <button id="hedgehog-close" type="button" aria-label="Закрыть">×</button>
-            </div>
-
-            <div class="hedgehog-scene">
-                <div class="hedgehog-window"></div>
-                <div class="hedgehog-cabinet"></div>
-                <div id="hedgehog-root">🥕</div>
-                <div id="hedgehog-character">🦔</div>
-                <button id="hedgehog-mic" type="button" aria-label="Говорить с ёжиком">🎤</button>
-            </div>
-        </div>
-    </div>
-
-    <link rel="stylesheet" href="/hedgehog.css">
-    <script src="/hedgehog.js"></script>
 
 </body>
 </html>
