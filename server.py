@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 import tools
 import telegram_runner       # фоновая нить с Telegram-ботом (см. lifespan)
@@ -61,7 +62,12 @@ from tools import (
 # Клиент Supabase пересоздаётся в connect_services() уже после импорта, поэтому
 # держим модульную ссылку: _sync_from_tools() обновит её на старте.
 supabase = tools.supabase
-from tools import BASE_DIR, WEB_DIR, DOWNLOADS_DIR, SETTINGS, UPLOADS_DIR
+from tools import BASE_DIR, DOWNLOADS_DIR, SETTINGS, UPLOADS_DIR
+# Папка WEB_DIR находится рядом с server.py
+WEB_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "WEB_DIR"
+)
 # Проверка адреса живёт в tools.py: тот же страж используется и внутри самих
 # инструментов (http_get_text, plain_page_text), поэтому одной копии достаточно.
 from tools import _safe_public_url
@@ -1018,12 +1024,7 @@ def page_icon():
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page():
     """Встроенная админка: статистика пользователей и настройки нейросети."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin_panel.html")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return HTMLResponse(f.read())
-    except Exception as e:
-        return HTMLResponse(f"<h1>admin_panel.html не найден</h1><p>{e}</p>", status_code=500)
+    return serve_page("admin_panel.html")
 
 
 # -------------------------------------------------
