@@ -838,6 +838,87 @@ def get_user(api_key: str):
         return None
 
 
+def get_hedgehog_settings(api_key: str) -> dict:
+    """Настройки комнаты Ёжика на аккаунт, синхронизируются через Supabase."""
+    if not api_key or not cloud_ready("app_settings"):
+        return {"name": "Ёжик", "initiative": False}
+    try:
+        res = supabase.table("app_settings").select("data").eq(
+            "id", f"hedgehog:{api_key}").limit(1).execute()
+        rows = res.data or []
+        data = rows[0].get("data") if rows else None
+        if isinstance(data, str):
+            data = json.loads(data)
+        if isinstance(data, dict):
+            return {"name": str(data.get("name") or "Ёжик")[:24],
+                    "initiative": bool(data.get("initiative", False))}
+    except Exception as e:
+        logger.error(f"get_hedgehog_settings: {e}")
+    return {"name": "Ёжик", "initiative": False}
+
+
+def save_hedgehog_settings(api_key: str, name: str, initiative: bool) -> bool:
+    """Сохраняет имя и режим инициативы Ёжика в облачных настройках аккаунта."""
+    if not api_key or not cloud_ready("app_settings"):
+        return False
+    try:
+        supabase.table("app_settings").upsert({
+            "id": f"hedgehog:{api_key}",
+            "data": {"name": (name or "Ёжик")[:24], "initiative": bool(initiative)},
+            "updated_at": datetime.datetime.now().isoformat(),
+        }).execute()
+        return True
+    except Exception as e:
+        logger.error(f"save_hedgehog_settings: {e}")
+        return False
+
+
+_HEDGEHOG_LOCAL_HISTORY = {}
+_HEDGEHOG_HISTORY_LIMIT = 6
+
+
+def get_hedgehog_history(api_key: str) -> list:
+    """История комнаты отдельно от обычного чата; последние шесть обменов."""
+    if not api_key:
+        return []
+    if cloud_ready("app_settings"):
+        try:
+            res = supabase.table("app_settings").select("data").eq(
+                "id", f"hedgehog-history:{api_key}").limit(1).execute()
+            rows = res.data or []
+            data = rows[0].get("data") if rows else None
+            if isinstance(data, str):
+                data = json.loads(data)
+            history = data.get("messages", []) if isinstance(data, dict) else []
+            if isinstance(history, list) and history:
+                return [m for m in history if isinstance(m, dict)
+                        and m.get("role") in ("user", "assistant")
+                        and isinstance(m.get("content"), str)][-_HEDGEHOG_HISTORY_LIMIT * 2:]
+        except Exception as e:
+            logger.error(f"get_hedgehog_history: {e}")
+    return list(_HEDGEHOG_LOCAL_HISTORY.get(api_key, []))
+
+
+def remember_hedgehog_turn(api_key: str, question: str, answer: str) -> None:
+    """Запоминает обмен только в истории Ёжика, не смешивая его с чатом."""
+    if not api_key:
+        return
+    history = get_hedgehog_history(api_key)
+    history.extend([{"role": "user", "content": question},
+                    {"role": "assistant", "content": answer}])
+    history = history[-_HEDGEHOG_HISTORY_LIMIT * 2:]
+    _HEDGEHOG_LOCAL_HISTORY[api_key] = history
+    if not cloud_ready("app_settings"):
+        return
+    try:
+        supabase.table("app_settings").upsert({
+            "id": f"hedgehog-history:{api_key}", "data": {"messages": history},
+            "updated_at": datetime.datetime.now().isoformat(),
+        }).execute()
+    except Exception as e:
+        logger.error(f"remember_hedgehog_turn: {e}")
+
+
 # -------------------------------------------------
 # ВХОД ПО НИКУ И ПАРОЛЮ
 # -------------------------------------------------
@@ -3697,7 +3778,8 @@ def strip_reasoning(answer):
     return text
 
 
-def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
+def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False,
+           system_prompt_override: str = "", conversational_only: bool = False):
     """Спрашивает нейросеть. as_task=True — это задание по расписанию.
 
     Задания кэшировать нельзя: повторяющееся дело («проверь дневник») должно
@@ -3713,14 +3795,15 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
     # Кэш учитывает модель И пользователя: без api_key ответ одного клиента
     # отдавался другому (в кэше лежали чужие данные, включая результаты
     # инструментов — открытые страницы и прочитанные задания).
-    cache_key = hash_text(f"{model}|{api_key}|{text}")
-    if not as_task and cache_key in ai_cache:
+    history_scope = "hedgehog:" + system_prompt_override if conversational_only else "chat"
+    cache_key = hash_text(f"{model}|{api_key}|{history_scope}|{text}")
+    if not as_task and not conversational_only and cache_key in ai_cache:
         return ai_cache[cache_key]
 
     # Адреса сохранённых сайтов подмешиваем в системный промпт: без этого ИИ
     # отвечал «пришли ссылку», хотя ссылка уже лежит в «Сайтах».
-    system_prompt = SETTINGS.get("system_prompt", "")
-    if api_key:
+    system_prompt = system_prompt_override or SETTINGS.get("system_prompt", "")
+    if api_key and not conversational_only:
         hint = saved_sites_hint(api_key)
         if hint:
             system_prompt = f"{system_prompt}\n\n{hint}\nЕсли пользователь просит войти на такой сайт, ответь, что можешь это сделать, и попроси написать «войди в <название>»."
@@ -3732,7 +3815,8 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
 
     # Для задания берём другую инструкцию: модель должна выполнить поручение,
     # а не отвечать на него как на обычную реплику в чате.
-    tool_prompt = AI_TASK_PROMPT if as_task else AI_TOOL_PROMPT
+    tool_prompt = ("Отвечай только текстом, без вызова инструментов и действий." if conversational_only
+                   else AI_TASK_PROMPT if as_task else AI_TOOL_PROMPT)
     if as_task:
         # Задание уходит ровно как поручение «сделай задание <текст>»,
         # без обёртки «пользователь пишет» — модель должна его выполнить.
@@ -3742,21 +3826,24 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
     messages = [
         {"role": "system", "content": f"{system_prompt}\n\n{tool_prompt}"},
     ]
-    # Память диалога: дописываем предыдущие реплики, чтобы ИИ понимал
-    # уточнения вроде «а подробнее?». Задания по расписанию идут без истории.
+    # История Ёжика изолирована от основной переписки. Обычный чат сохраняет
+    # прежний формат, а задания и фоновые запросы не получают контекст.
     if not as_task:
-        for turn in get_history(api_key):
-            messages.append({"role": "user",
-                             "content": f"Пользователь {user_name} пишет: {turn['q']}"})
-            messages.append({"role": "assistant", "content": turn["a"]})
+        if conversational_only:
+            messages.extend(get_hedgehog_history(api_key))
+        else:
+            for turn in get_history(api_key):
+                messages.append({"role": "user",
+                                 "content": f"Пользователь {user_name} пишет: {turn['q']}"})
+                messages.append({"role": "assistant", "content": turn["a"]})
     messages.append({"role": "user", "content": user_message})
     payload = {
         # model подставит _ai_call — свой для каждого провайдера.
         "messages": messages,
         "temperature": SETTINGS.get("temperature", 0.7),
         "max_tokens": SETTINGS.get("max_tokens", 500),
-        "tools": AI_TOOLS,
-        "tool_choice": "auto",
+        "tools": [] if conversational_only else AI_TOOLS,
+        "tool_choice": "none" if conversational_only else "auto",
     }
 
     def _post(body):
@@ -3790,6 +3877,12 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
 
             msg = (res.json().get("choices") or [{}])[0].get("message") or {}
             calls = msg.get("tool_calls") or []
+            if conversational_only and calls:
+                # Even a misbehaving provider/model must never reach the tool dispatcher.
+                answer = strip_reasoning(msg.get("content") or "") or "Секундочку, я задумался и потерял нить. Скажи ещё раз?"
+                if not as_task:
+                    remember_hedgehog_turn(api_key, text, answer)
+                return answer
             if not calls:
                 answer = msg.get("content")
                 if not answer:
@@ -3799,11 +3892,14 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False):
                 answer = strip_reasoning(answer)
                 if not answer:
                     return "Не понял вопрос"
-                if len(ai_cache) < 100:
+                if len(ai_cache) < 100 and not conversational_only:
                     ai_cache[cache_key] = answer
-                # Запоминаем пару реплик, чтобы следующий вопрос понимал контекст.
+                # Основной чат и Ёжик ведут независимые короткие истории.
                 if not as_task:
-                    remember_turn(api_key, text, answer)
+                    if conversational_only:
+                        remember_hedgehog_turn(api_key, text, answer)
+                    else:
+                        remember_turn(api_key, text, answer)
                 return answer
 
             # Модель попросила инструменты — выполняем и возвращаем результат ей.

@@ -89,6 +89,12 @@ class ApiKeyRequest(BaseModel):
     api_key: str = API_KEY_FIELD
 
 
+class HedgehogSettingsRequest(BaseModel):
+    api_key: str = API_KEY_FIELD
+    name: str | None = Field(None, min_length=1, max_length=24)
+    initiative: bool | None = None
+
+
 class HistoryRequest(BaseModel):
     """Страница истории чата: before_seq — листать реплики старее этого номера."""
     api_key: str = API_KEY_FIELD

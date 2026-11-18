@@ -146,6 +146,36 @@
             box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
         }
         
+        /* Комната Ёжика — отдельный экран с небольшим иллюстрированным интерьером. */
+        .hedgehog-screen { display:none; flex:1; min-height:0; overflow:auto; flex-direction:column; padding:12px; gap:10px; background:linear-gradient(180deg,#142538,#1b2538 70%,#382a26); }
+        .hedgehog-screen.active { display:flex; }
+        .hedge-toolbar { display:flex; align-items:center; gap:8px; }
+        .hedge-toolbar button,.hedge-toggle { border:1px solid #ffffff30; border-radius:14px; background:#101827cc; color:#fff; padding:8px 11px; cursor:pointer; }
+        .hedge-title { flex:1; font-weight:700; text-align:center; }
+        .hedge-scene { position:relative; flex:1; min-height:330px; max-height:52vh; overflow:hidden; border:2px solid #ffffff24; border-radius:20px; background:linear-gradient(#9dc5d0 0 62%,#936f54 62% 66%,#71533f 66%); box-shadow:inset 0 0 45px #19233970; }
+        .hedge-window {position:absolute;left:6%;top:8%;width:25%;height:29%;border:7px solid #795b45;border-radius:5px;background:linear-gradient(135deg,#a9e1ed,#e5f6e5);box-shadow:inset 0 0 0 3px #fff8;}
+        .hedge-window:after {content:"";position:absolute;left:49%;height:100%;border-left:3px solid #795b45;}
+        .hedge-shelf {position:absolute;right:6%;top:20%;width:34%;height:10px;background:#795338;box-shadow:0 9px #553d30;}
+        .hedge-books {position:absolute;right:10%;top:10%;font-size:26px;letter-spacing:-8px;}
+        .hedge-bed {position:absolute;left:8%;bottom:17%;width:38%;height:24%;background:#735044;border-radius:8px 10px 2px 2px;box-shadow:0 13px #47352e;}
+        .hedge-bed:before {content:"";position:absolute;left:4%;top:9%;width:35%;height:37%;background:#f2e5cf;border-radius:10px;}
+        .hedge-drawer {position:absolute;left:16%;bottom:10%;width:23%;height:8%;border:3px solid #51392d;background:#a8794e;border-radius:4px;text-align:center;color:#3a281e;font-size:12px;}
+        .hedge-chair {position:absolute;right:15%;bottom:18%;width:18%;height:22%;border:8px solid #754c35;border-bottom-width:5px;border-radius:16px 16px 4px 4px;background:#9a6747;}
+        .hedge-chair:after {content:"";position:absolute;left:12%;bottom:-22px;width:8px;height:22px;background:#563a2b;box-shadow:90px 0 #563a2b;}
+        .hedge-rug {position:absolute;left:32%;bottom:4%;width:44%;height:15%;border-radius:50%;background:#bb8061;opacity:.85;}
+        .hedge-character {position:absolute;right:19%;bottom:32%;font-size:clamp(48px,12vw,78px);filter:drop-shadow(0 6px 3px #34291f70);transform:translateX(0);transition:all .5s;z-index:2;}
+        .hedge-character.busy {right:48%;bottom:19%;animation:hedgeWiggle .4s infinite alternate;}
+        .hedge-character.run {transition:all .7s;right:25%;bottom:32%;}
+        .hedge-character.sit {transform:scale(.88);}
+        @keyframes hedgeWiggle {to{transform:rotate(9deg) translateY(-5px)}}
+        .hedge-action {position:absolute;bottom:3%;left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 2px 4px #000;}
+        .hedge-controls {display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+        .hedge-controls button {border:1px solid #ffffff30;border-radius:14px;padding:8px 11px;background:#152237;color:white;cursor:pointer;}
+        .hedge-log {height:66px;overflow:auto;background:#0b1220ad;border-radius:12px;padding:6px 9px;color:#e7edf7;font-size:10px;line-height:1.35;white-space:pre-wrap;}
+        .hedge-input-row {display:flex;gap:8px;}
+        .hedge-input-row input {min-width:0;flex:1;border:1px solid #ffffff35;border-radius:20px;padding:11px 14px;background:#101827;color:white;}
+        .hedge-input-row button {border:0;border-radius:50%;width:44px;height:44px;background:#39a8bc;color:#fff;font-size:19px;}
+        .hedge-switch {display:flex;align-items:center;gap:5px;font-size:12px;}
         /* ЭКРАНЫ */
         .screen { 
             display: none; 
@@ -862,6 +892,7 @@
                     <select class="voice-select" id="voiceSelect" onchange="onVoiceChange()"
                             title="Голос озвучки"></select>
                     <button class="btn btn-focus" id="focusBtn" onclick="openPomoModal()" title="Таймер Помидор" data-i18n-title="pomoTitle">🍅</button>
+                    <button class="btn btn-focus" id="hedgehogOpenBtn" onclick="openHedgehogRoom()" title="Комната Ёжика">🦔</button>
                     <button class="btn btn-cheat" onclick="openCheatModal()" title="Шпаргалка по теме" data-i18n-title="cheatTitle">📄</button>
                     <button class="btn btn-download" onclick="openDownloadModal()" title="Скачать файл по ссылке" data-i18n-title="dlTitle">📥</button>
                     <button class="btn btn-upload" id="uploadBtn" onclick="pickFile()" title="Загрузить файл с устройства" data-i18n-title="upTitle">📎</button>
@@ -869,6 +900,28 @@
                 </div>
             </div>
         </div>
+
+        <section class="hedgehog-screen" id="hedgehogScreen" aria-label="Комната Ёжика">
+            <div class="hedge-toolbar">
+                <button onclick="closeHedgehogRoom()">← Назад</button>
+                <div class="hedge-title" id="hedgeNameTitle">Ёжик</div>
+                <button onclick="renameHedgehog()" title="Переименовать">✏️</button>
+            </div>
+            <label class="hedge-switch"><input id="hedgeInitiative" type="checkbox" onchange="saveHedgeSettings({initiative:this.checked})"> Ёжик сам зовёт поговорить</label>
+            <div class="hedge-scene">
+                <div class="hedge-window"></div><div class="hedge-shelf"></div><div class="hedge-books">📚📚</div>
+                <div class="hedge-bed"></div><div class="hedge-drawer">ящик</div><div class="hedge-chair"></div><div class="hedge-rug"></div>
+                <div class="hedge-character sit" id="hedgeCharacter">🦔</div>
+                <div class="hedge-action" id="hedgeAction">сидит в кресле и ждёт</div>
+            </div>
+            <div class="hedge-controls">
+                <button id="hedgeVoiceBtn" onclick="toggleHedgeVoice()">🔊 Голос</button>
+                <select id="hedgeVoiceSelect" onchange="onHedgeVoiceChange()" aria-label="Голос Ёжика"></select>
+                <button id="hedgeMicBtn" onclick="toggleHedgeMic()">🎤</button>
+            </div>
+            <div class="hedge-log" id="hedgeLog" aria-live="polite"></div>
+            <div class="hedge-input-row"><input id="hedgeInput" type="text" placeholder="Скажи что-нибудь Ёжику…" onkeydown="if(event.key==='Enter')sendHedgeMessage()"><button onclick="sendHedgeMessage()" aria-label="Отправить">➤</button></div>
+        </section>
 
         <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
         <div class="sidebar" id="sidebar">
@@ -1365,9 +1418,12 @@
         }
 
         function show(id) {
-            document.getElementById("regScreen").classList.remove("active");
-            document.getElementById("chatScreen").classList.remove("active");
-            document.getElementById(id).classList.add("active");
+            ["regScreen", "chatScreen", "hedgehogScreen"].forEach(screenId => {
+                const el = document.getElementById(screenId);
+                if (el) { el.classList.remove("active"); el.style.display = ""; }
+            });
+            const screen = document.getElementById(id);
+            if (screen) screen.classList.add("active");
         }
 
         function toggleSidebar() {
@@ -1484,6 +1540,147 @@
             loadHistory();
             speak(t("greeting")(name).replace(/<[^>]*>/g, ""));
         }
+
+        // ================= КОМНАТА ЁЖИКА =================
+        const HEDGE_ACTIVITIES = [
+            { label: "читает книжку", line: "Сейчас дочитаю страницу…", sound: "page" },
+            { label: "достаёт корешок из ящика и жуёт, продолжая читать", line: "Нашёл корешок! Буду хрумкать и читать дальше.", sound: "chew" },
+            { label: "подметает коврик", line: "Немного подмету, тут иголки повсюду.", sound: "sweep" },
+            { label: "вытирает пыль с полки", line: "Полочка блестит!", sound: "wipe" },
+            { label: "расставляет книжки", line: "Расставлю книги по порядку.", sound: "books" },
+            { label: "садится в кресло и потягивается", line: "Фух, посижу минутку.", sound: "chair" }
+        ];
+        let hedgeName = "Ёжик", hedgeInitiative = false, hedgeVoiceEnabled = localStorage.getItem("hedge_voice") !== "off";
+        let hedgeRoomOpen = false, hedgeBusy = false, hedgeTimer = null, hedgeWaitTimer = null;
+        let hedgeMic = null, hedgeMicActive = false, hedgeHeard = "", hedgePendingText = "", hedgeBusyTimer = null, hedgeRunTimer = null;
+        let hedgeVoiceName = localStorage.getItem("hedge_voice_name") || "";
+        function hedgeLog(who, text) {
+            const el = document.getElementById("hedgeLog"); if (!el) return;
+            const row = document.createElement("div"); row.textContent = `${who}: ${text}`; el.appendChild(row);
+            while(el.children.length>150)el.removeChild(el.firstChild); el.scrollTop = el.scrollHeight;
+        }
+        function hedgeScene(action, busy) {
+            const c = document.getElementById("hedgeCharacter"), a = document.getElementById("hedgeAction");
+            if (!c || !a) return;
+            c.className = "hedge-character " + (busy ? "busy" : "sit"); a.textContent = action;
+        }
+        function hedgeVoicesRefresh() {
+            const sel = document.getElementById("hedgeVoiceSelect"); if (!sel || !window.speechSynthesis) return;
+            const voices = speechSynthesis.getVoices() || []; sel.innerHTML = "";
+            voices.forEach(v => { const o = document.createElement("option"); o.value = v.name; o.textContent = `${v.name} (${v.lang})`; sel.appendChild(o); });
+            if (voices.length) { sel.value = voices.some(v => v.name === hedgeVoiceName) ? hedgeVoiceName : (voiceName || pickVoice()?.name || voices[0].name); hedgeVoiceName = sel.value; }
+        }
+        function hedgeSpeak(text, onend=null) {
+            if (!hedgeVoiceEnabled || !window.speechSynthesis || !text) { if(onend)onend(); return; }
+            try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); const vs = speechSynthesis.getVoices() || [];
+                const v = vs.find(x => x.name === hedgeVoiceName) || pickVoice(); if (v) { u.voice = v; u.lang = v.lang || voiceLang(); } else u.lang = voiceLang();
+                u.rate = 0.95; u.pitch = 1; if(onend)u.onend=u.onerror=onend; speechSynthesis.speak(u);
+            } catch (e) { if(onend)onend(); }
+        }
+        function paintHedgeVoice() { const b = document.getElementById("hedgeVoiceBtn"); if (b) b.textContent = hedgeVoiceEnabled ? "🔊 Голос" : "🔇 Голос"; }
+        function toggleHedgeVoice() { hedgeVoiceEnabled = !hedgeVoiceEnabled; localStorage.setItem("hedge_voice", hedgeVoiceEnabled ? "on" : "off"); paintHedgeVoice(); if (!hedgeVoiceEnabled && window.speechSynthesis) speechSynthesis.cancel(); }
+        function onHedgeVoiceChange() { hedgeVoiceName = document.getElementById("hedgeVoiceSelect").value; localStorage.setItem("hedge_voice_name", hedgeVoiceName); }
+        async function saveHedgeSettings(patch = {}) {
+            const payload = { api_key: apiKey }; if (Object.prototype.hasOwnProperty.call(patch, "name")) payload.name = patch.name;
+            if (Object.prototype.hasOwnProperty.call(patch, "initiative")) payload.initiative = patch.initiative;
+            try { const r = await fetch(`${SERVER}/hedgehog/settings`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); const d=await r.json();
+                if (d.success) { hedgeName=d.settings.name; hedgeInitiative=d.settings.initiative; document.getElementById("hedgeNameTitle").textContent=hedgeName; document.getElementById("hedgeInitiative").checked=hedgeInitiative; if(d.synced===false&&Object.keys(patch).length)hedgeLog("Система","Настройка временно применена, но не синхронизирована с облаком"); }
+                else hedgeLog("Система",d.error || "Не удалось сохранить настройки"); return d;
+            } catch(e) { if(Object.prototype.hasOwnProperty.call(patch,"name"))hedgeName=patch.name; if(Object.prototype.hasOwnProperty.call(patch,"initiative"))hedgeInitiative=patch.initiative; document.getElementById("hedgeNameTitle").textContent=hedgeName; document.getElementById("hedgeInitiative").checked=hedgeInitiative; hedgeLog("Система","Настройка применена только до перезагрузки: сервер недоступен"); return null; }
+        }
+        async function renameHedgehog() { const val=prompt("Как назвать ёжика?",hedgeName); if(val===null)return; const name=val.trim().slice(0,24)||"Ёжик"; await saveHedgeSettings({name}); }
+        function hedgeClearTimers() { clearTimeout(hedgeTimer); clearTimeout(hedgeWaitTimer); clearTimeout(hedgeBusyTimer); clearTimeout(hedgeRunTimer); hedgeTimer=hedgeWaitTimer=hedgeBusyTimer=hedgeRunTimer=null; }
+        function hedgeSchedule(ms) { clearTimeout(hedgeTimer); if(hedgeRoomOpen) hedgeTimer=setTimeout(hedgeActivity,ms); }
+        function hedgeBeginWait(ms, initiativeCycle) {
+            clearTimeout(hedgeWaitTimer);
+            hedgeWaitTimer=setTimeout(()=>{ if(!hedgeRoomOpen||hedgeBusy)return;
+                if(initiativeCycle) { hedgeSayLine("Ты где?"); hedgeSchedule(1700); }
+                else hedgeActivity(true);
+            },ms);
+        }
+        function hedgeRunToChair() {
+            const c=document.getElementById("hedgeCharacter"); if(!c)return;
+            c.className="hedge-character run"; hedgePlaySound("footsteps");
+            hedgeRunTimer=setTimeout(()=>{if(!hedgeRoomOpen)return;c.className="hedge-character sit";hedgePlaySound("chair");hedgeRunTimer=null;},700);
+        }
+        function hedgeSayLine(line, onend=null) { hedgeLog(hedgeName,line); hedgeSpeak(line,onend); }
+        function hedgeActivity(afterSilence=false) {
+            if(!hedgeRoomOpen||hedgeBusy)return;
+            const activity=HEDGE_ACTIVITIES[Math.floor(Math.random()*HEDGE_ACTIVITIES.length)]; hedgeBusy=true; hedgeScene(activity.label,true);
+            if(activity.sound==="chew") { hedgePlaySound("drawer"); setTimeout(()=>hedgePlaySound("rummage"),700); setTimeout(()=>hedgePlaySound("root"),1550); setTimeout(()=>hedgePlaySound("chew"),2200); }
+            else { hedgePlaySound("footsteps"); setTimeout(()=>hedgePlaySound(activity.sound),450); }
+            hedgeSayLine(activity.line);
+            const duration=activity.sound==="page"?5200:activity.sound==="chew"?6200:4100;
+            hedgeBusyTimer=setTimeout(()=>{
+                hedgeBusy=false; if(!hedgeRoomOpen)return;
+                hedgeScene("возвращается в кресло",true); hedgeRunToChair();
+                hedgeTimer=setTimeout(()=>{
+                    if(!hedgeRoomOpen)return;
+                    hedgeScene("сидит в кресле и ждёт",false);
+                    if(hedgeInitiative){ hedgeSayLine("Давай поговорим"); hedgeBeginWait(5000,true); }
+                    else hedgeBeginWait(30000,false);
+                },900);
+            },duration);
+        }
+        const HEDGE_SOUND_FILES = {
+            snort: "audio/hedgehog/snort.mp3", footsteps: "audio/hedgehog/footsteps.mp3",
+            drawer: "audio/hedgehog/drawer.mp3", rummage: "audio/hedgehog/rummage.mp3",
+            root: "audio/hedgehog/root.mp3", page: "audio/hedgehog/page.mp3",
+            chew: "audio/hedgehog/chew.mp3", sweep: "audio/hedgehog/sweep.mp3",
+            wipe: "audio/hedgehog/wipe.mp3", books: "audio/hedgehog/books.mp3",
+            chair: "audio/hedgehog/chair.mp3"
+        };
+        let hedgeAudio = null;
+        function hedgePlaySound(kind) {
+            if (!hedgeRoomOpen) return;
+            const path = HEDGE_SOUND_FILES[kind]; if (!path) return;
+            if (hedgeAudio) { hedgeAudio.pause(); hedgeAudio.currentTime = 0; }
+            hedgeAudio = new Audio(path); hedgeAudio.volume = 0.65;
+            hedgeAudio.play().catch(()=>{});
+        }
+        async function openHedgehogRoom() {
+            if(!apiKey){alert("Сначала войдите в аккаунт");return;}
+            hedgeClearTimers(); hedgeBusy=false; hedgePendingText="";
+            hedgeRoomOpen=true; show("hedgehogScreen"); document.getElementById("hedgeLog").innerHTML=""; hedgeLog("Комната","Ёжик ждёт в кресле.");
+            hedgeVoicesRefresh(); paintHedgeVoice(); hedgeScene("сидит в кресле и ждёт",false);
+            const settings=await saveHedgeSettings();
+            if(!hedgeRoomOpen)return;
+            if(hedgeInitiative){hedgeSayLine("Давай поговорим",()=>{if(hedgeRoomOpen)hedgeBeginWait(5000,true);});} else hedgeBeginWait(30000,false);
+        }
+        function closeHedgehogRoom() {
+            hedgeRoomOpen=false; hedgeClearTimers(); hedgeBusy=false; hedgePendingText="";
+            if(hedgeMicActive&&hedgeMic){try{hedgeMic.stop();}catch(e){}}
+            hedgeMicActive=false; hedgeMic=null; const micBtn=document.getElementById("hedgeMicBtn"); if(micBtn)micBtn.textContent="🎤";
+            if(window.speechSynthesis)speechSynthesis.cancel();
+            if(hedgeAudio){hedgeAudio.pause();hedgeAudio.currentTime=0;hedgeAudio=null;}
+            show("chatScreen");
+        }
+        function toggleHedgeMic() {
+            if(!hedgeRoomOpen)return;
+            if(hedgeMicActive){hedgeMicActive=false;try{hedgeMic.stop();}catch(e){};const btn=document.getElementById("hedgeMicBtn");if(btn)btn.textContent="🎤";return;}
+            const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+            if(!SR){hedgeLog("Система","В этом браузере нет распознавания речи.");return;}
+            if(window.speechSynthesis)speechSynthesis.cancel();
+            try { hedgeMic=new SR(); hedgeMic.lang=voiceLang(); hedgeMic.continuous=false; hedgeMic.interimResults=true; hedgeHeard=""; hedgeMicActive=true; document.getElementById("hedgeMicBtn").textContent="🛑";
+                hedgeMic.onresult=e=>{let s="";for(let i=0;i<e.results.length;i++)s+=e.results[i][0].transcript;hedgeHeard=s;document.getElementById("hedgeInput").value=s;};
+                hedgeMic.onerror=()=>{hedgeMicActive=false;document.getElementById("hedgeMicBtn").textContent="🎤";};
+                hedgeMic.onend=()=>{hedgeMicActive=false;document.getElementById("hedgeMicBtn").textContent="🎤";}; hedgeMic.start();
+            } catch(e){hedgeMicActive=false;document.getElementById("hedgeMicBtn").textContent="🎤";hedgeLog("Система","Не удалось включить микрофон.");}
+        }
+        async function sendHedgeMessage() {
+            const input=document.getElementById("hedgeInput"), text=input.value.trim(); if(!text||!apiKey||!hedgeRoomOpen)return; input.value=""; hedgeClearTimers();
+            if(hedgeBusy){hedgePendingText=text; hedgeBusy=false; hedgeScene("быстро заканчивает дело",true); hedgeBusyTimer=setTimeout(()=>{if(!hedgeRoomOpen)return;hedgeScene("бежит к креслу",true);hedgePlaySound("footsteps");hedgeRunTimer=setTimeout(()=>{if(!hedgeRoomOpen)return;hedgeScene("садится в кресло",false);hedgePlaySound("chair");hedgeSayLine("Так, что ты сказал?");hedgeSendPending();},700);},700);return;}
+            hedgePendingText=text; hedgeSendPending();
+        }
+        async function hedgeSendPending() {
+            const text=hedgePendingText; hedgePendingText=""; if(!text||!hedgeRoomOpen)return; hedgeLog("Ты",text); hedgeBusy=false;
+            try { const r=await fetch(`${SERVER}/hedgehog/ask`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:apiKey,text})}); const d=await r.json();
+                if(!hedgeRoomOpen)return;
+                const answer=d.answer||d.error||"Я задумался…"; hedgeLog(hedgeName,answer); hedgeSpeak(answer);
+            } catch(e){if(hedgeRoomOpen)hedgeLog("Система","Не удалось связаться с ёжиком.");}
+            if(hedgeRoomOpen){ if(hedgeInitiative){hedgeSayLine("Давай поговорим");hedgeBeginWait(5000,true);}else hedgeBeginWait(30000,false); }
+        }
+        if(window.speechSynthesis) speechSynthesis.addEventListener?.("voiceschanged",hedgeVoicesRefresh);
 
         function readAuthFields() {
             const name = document.getElementById("nameInput").value.trim();
@@ -2832,6 +3029,7 @@
         }
 
         function logout() {
+            if (hedgeRoomOpen) closeHedgehogRoom();
             closeSidebar();
             stopSchedulerPolling();
             apiKey = "";
