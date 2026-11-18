@@ -146,36 +146,89 @@
             box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
         }
         
-        /* Комната Ёжика — отдельный экран с небольшим иллюстрированным интерьером. */
-        .hedgehog-screen { display:none; flex:1; min-height:0; overflow:auto; flex-direction:column; padding:12px; gap:10px; background:linear-gradient(180deg,#142538,#1b2538 70%,#382a26); }
-        .hedgehog-screen.active { display:flex; }
+        /* Уютная иллюстрированная комнатка: глубина, свет и маленькие живые детали. */
+        .hedgehog-screen { display:none; flex:1; min-height:0; overflow:auto; flex-direction:column; padding:12px; gap:10px; background:radial-gradient(ellipse at 50% 0%,#35445a 0,#182436 58%,#211b27 100%); }
+        .hedgehog-screen.active { display:flex; animation:hedgeScreenIn .55s cubic-bezier(.2,.8,.2,1) both; }
+        @keyframes hedgeScreenIn {from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
         .hedge-toolbar { display:flex; align-items:center; gap:8px; }
-        .hedge-toolbar button,.hedge-toggle { border:1px solid #ffffff30; border-radius:14px; background:#101827cc; color:#fff; padding:8px 11px; cursor:pointer; }
-        .hedge-title { flex:1; font-weight:700; text-align:center; }
-        .hedge-scene { position:relative; flex:1; min-height:330px; max-height:52vh; overflow:hidden; border:2px solid #ffffff24; border-radius:20px; background:linear-gradient(#9dc5d0 0 62%,#936f54 62% 66%,#71533f 66%); box-shadow:inset 0 0 45px #19233970; }
-        .hedge-window {position:absolute;left:6%;top:8%;width:25%;height:29%;border:7px solid #795b45;border-radius:5px;background:linear-gradient(135deg,#a9e1ed,#e5f6e5);box-shadow:inset 0 0 0 3px #fff8;}
-        .hedge-window:after {content:"";position:absolute;left:49%;height:100%;border-left:3px solid #795b45;}
-        .hedge-shelf {position:absolute;right:6%;top:20%;width:34%;height:10px;background:#795338;box-shadow:0 9px #553d30;}
-        .hedge-books {position:absolute;right:10%;top:10%;font-size:26px;letter-spacing:-8px;}
-        .hedge-bed {position:absolute;left:8%;bottom:17%;width:38%;height:24%;background:#735044;border-radius:8px 10px 2px 2px;box-shadow:0 13px #47352e;}
-        .hedge-bed:before {content:"";position:absolute;left:4%;top:9%;width:35%;height:37%;background:#f2e5cf;border-radius:10px;}
-        .hedge-drawer {position:absolute;left:16%;bottom:10%;width:23%;height:8%;border:3px solid #51392d;background:#a8794e;border-radius:4px;text-align:center;color:#3a281e;font-size:12px;}
-        .hedge-chair {position:absolute;right:15%;bottom:18%;width:18%;height:22%;border:8px solid #754c35;border-bottom-width:5px;border-radius:16px 16px 4px 4px;background:#9a6747;}
-        .hedge-chair:after {content:"";position:absolute;left:12%;bottom:-22px;width:8px;height:22px;background:#563a2b;box-shadow:90px 0 #563a2b;}
-        .hedge-rug {position:absolute;left:32%;bottom:4%;width:44%;height:15%;border-radius:50%;background:#bb8061;opacity:.85;}
-        .hedge-character {position:absolute;right:19%;bottom:32%;font-size:clamp(48px,12vw,78px);filter:drop-shadow(0 6px 3px #34291f70);transform:translateX(0);transition:all .5s;z-index:2;}
-        .hedge-character.busy {right:48%;bottom:19%;animation:hedgeWiggle .4s infinite alternate;}
-        .hedge-character.run {transition:all .7s;right:25%;bottom:32%;}
-        .hedge-character.sit {transform:scale(.88);}
-        @keyframes hedgeWiggle {to{transform:rotate(9deg) translateY(-5px)}}
-        .hedge-action {position:absolute;bottom:3%;left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 2px 4px #000;}
+        .hedge-toolbar button,.hedge-toggle { border:1px solid #ffffff30; border-radius:14px; background:#101827cc; color:#fff; padding:8px 11px; cursor:pointer; transition:transform .2s,background .2s; }
+        .hedge-toolbar button:hover {transform:translateY(-2px);background:#28374ccc}
+        .hedge-title { flex:1; font-weight:800; text-align:center; letter-spacing:.04em; text-shadow:0 0 18px #ffd99188; }
+        .hedge-scene { position:relative; isolation:isolate; flex:1; min-height:350px; max-height:55vh; overflow:hidden; border:1px solid #ffedce55; border-radius:22px; background:linear-gradient(180deg,#384b60 0%,#9b796b 58%,#c28e62 59%,#684832 63%,#422f2b 100%); box-shadow:0 18px 35px #080d1870,inset 0 0 45px #16203370; }
+        .hedge-scene:before {content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 73% 14%,#ffd98488,transparent 34%),linear-gradient(90deg,#46344422,transparent 45%,#261d2b44);animation:roomLight 8s ease-in-out infinite alternate;}
+        .hedge-scene:after {content:"";position:absolute;inset:0;z-index:6;pointer-events:none;background:linear-gradient(115deg,#fff3 0%,transparent 22%,transparent 72%,#ffca7430 100%);mix-blend-mode:screen;}
+        @keyframes roomLight {from{opacity:.52;filter:hue-rotate(-8deg)}to{opacity:1;filter:hue-rotate(8deg)}}
+        .hedge-wall {position:absolute;inset:0 0 37%;background:linear-gradient(180deg,#526578,#aa8170);z-index:-1;}
+        .hedge-window {position:absolute;left:6%;top:8%;width:27%;height:31%;border:8px solid #76503b;border-radius:9px;background:linear-gradient(180deg,#526b91 0%,#f5bb82 65%,#f9dda1 100%);box-shadow:inset 0 0 0 3px #ffe7bfaa,0 8px 14px #29213366;overflow:hidden;}
+        .hedge-window:before {content:"";position:absolute;left:0;right:0;bottom:0;height:32%;background:linear-gradient(160deg,transparent 20%,#384b566e 21% 36%,transparent 37%),linear-gradient(15deg,#52645a,#74806a);}
+        .hedge-window:after {content:"";position:absolute;left:49%;top:0;height:100%;border-left:4px solid #76503b;box-shadow:0 0 0 2px #ffe7bf44;}
+        .hedge-moon {position:absolute;right:15%;top:13%;width:28px;height:28px;border-radius:50%;background:#fff0bd;box-shadow:0 0 12px #fff0bd,0 0 30px #ffe2a877;animation:moonGlow 3s ease-in-out infinite alternate;}
+        @keyframes moonGlow {to{box-shadow:0 0 20px #fff4cb,0 0 48px #ffe2a8}}
+        .hedge-curtain {position:absolute;left:4%;top:6%;width:5%;height:35%;border-radius:8px 0 15px 4px;background:repeating-linear-gradient(90deg,#a74e59,#a74e59 5px,#c36a6d 6px,#c36a6d 10px);filter:drop-shadow(2px 3px 2px #3b253355);}
+        .hedge-curtain.right {left:30%;border-radius:0 8px 4px 15px;}
+        .hedge-shelf {position:absolute;right:6%;top:22%;width:35%;height:9px;border-radius:3px;background:linear-gradient(#bd8a59,#765038);box-shadow:0 6px 0 #49362f,0 10px 8px #281e2066;}
+        .hedge-books {position:absolute;right:10%;top:11%;font-size:25px;letter-spacing:-9px;filter:drop-shadow(0 3px 2px #211b1a77);transform-origin:bottom;animation:booksSway 4.5s ease-in-out infinite;}
+        @keyframes booksSway {50%{transform:rotate(-2deg)}}
+        .hedge-picture {position:absolute;right:19%;top:5%;width:42px;height:33px;border:4px solid #795339;border-radius:3px;background:#f9db9a;box-shadow:0 3px 7px #241d2477;text-align:center;font-size:19px;line-height:24px;transform:rotate(3deg);}
+        .hedge-lamp {position:absolute;right:39%;top:29%;width:8px;height:30px;background:#704934;border-radius:3px;z-index:1;}
+        .hedge-lamp:before {content:"";position:absolute;left:-11px;top:-11px;width:30px;height:20px;border-radius:50% 50% 25% 25%;background:#f4bd68;box-shadow:0 0 16px 8px #ffcd7566;animation:lampFlicker 3.8s infinite;}
+        @keyframes lampFlicker {0%,94%,100%{opacity:1}96%{opacity:.55}98%{opacity:.85}}
+        .hedge-plant {position:absolute;right:5%;bottom:19%;font-size:30px;filter:drop-shadow(0 4px 2px #261d1c66);transform-origin:bottom;animation:plantSway 3.2s ease-in-out infinite;}
+        @keyframes plantSway {50%{transform:rotate(5deg)}}
+        .hedge-bed {position:absolute;left:8%;bottom:16%;width:38%;height:23%;background:linear-gradient(160deg,#865c48,#523b37);border-radius:12px 14px 3px 3px;box-shadow:0 13px #392d2b,0 18px 10px #241b1c88;}
+        .hedge-bed:before {content:"";position:absolute;left:5%;top:9%;width:37%;height:40%;background:linear-gradient(140deg,#fff1d9,#d9bda0);border-radius:12px;box-shadow:inset 0 -4px #c6a88c;}
+        .hedge-bed:after {content:"";position:absolute;right:4%;top:10%;width:49%;height:57%;border-radius:10px;background:repeating-linear-gradient(135deg,#bb6462,#bb6462 9px,#ce7770 10px,#ce7770 18px);box-shadow:inset 0 4px #e19b86;}
+        .hedge-drawer {position:absolute;left:16%;bottom:8%;width:23%;height:8%;border:3px solid #51392d;background:linear-gradient(#c18c5e,#946345);border-radius:4px;text-align:center;color:#3a281e;font-size:11px;box-shadow:0 4px 6px #21191a77;}
+        .hedge-drawer:before {content:"✦";position:absolute;left:48%;top:18%;color:#f4d08d;font-size:9px;}
+        .hedge-chair {position:absolute;right:14%;bottom:18%;width:19%;height:24%;border:8px solid #754c35;border-bottom-width:5px;border-radius:21px 21px 5px 5px;background:linear-gradient(120deg,#be8057,#8b563c);box-shadow:inset 0 0 0 3px #d39b6c66,0 7px 9px #25191c66;}
+        .hedge-chair:after {content:"";position:absolute;left:12%;bottom:-25px;width:8px;height:25px;background:#563a2b;box-shadow:clamp(35px,9vw,64px) 0 #563a2b;}
+        .hedge-rug {position:absolute;left:28%;bottom:2%;width:49%;height:17%;border-radius:50%;background:repeating-radial-gradient(ellipse,#bf8260 0 9px,#a96c52 10px 13px);opacity:.96;box-shadow:0 5px 8px #241a1b66;}
+        .hedge-sparkle {position:absolute;z-index:1;color:#fff0bd;text-shadow:0 0 10px #ffd37a;font-size:15px;animation:sparkleFloat 3s ease-in-out infinite;pointer-events:none;}
+        .hedge-sparkle.s1{left:46%;top:18%;animation-delay:-.4s}.hedge-sparkle.s2{left:80%;top:43%;font-size:11px;animation-delay:-1.8s}.hedge-sparkle.s3{left:56%;top:39%;font-size:12px;animation-delay:-2.5s}
+        @keyframes sparkleFloat {0%,100%{opacity:.15;transform:translateY(4px) scale(.7) rotate(0)}50%{opacity:1;transform:translateY(-8px) scale(1.15) rotate(70deg)}}
+        .hedge-character {position:absolute;right:16%;bottom:29%;width:clamp(76px,21vw,128px);height:auto;filter:drop-shadow(0 9px 5px #34291f99);transform-origin:50% 85%;transition:right .8s cubic-bezier(.2,.8,.2,1),bottom .8s,transform .5s;z-index:3;overflow:visible;animation:hedgeIdle 3.2s ease-in-out infinite;}
+        .hedge-character .hedge-body {animation:hedgeBreath 2.4s ease-in-out infinite;transform-origin:50% 90%;}
+        .hedge-character .hedge-ear {animation:earTwitch 5s ease-in-out infinite;transform-origin:center;}
+        .hedge-character .hedge-eye {animation:hedgeBlink 5.5s infinite;transform-origin:center;}
+        .hedge-character .hedge-cheek {animation:cheekGlow 2s ease-in-out infinite alternate;}
+        .hedge-character .hedge-mouth {transform-origin:125px 95px;}
+        .hedge-character.talking .hedge-mouth {animation:hedgeTalk .2s ease-in-out infinite alternate;}
+        @keyframes hedgeTalk {to{transform:scaleY(1.6) translateY(1px)}}
+        .hedge-character.page .hedge-body {animation:hedgeRead .65s ease-in-out infinite alternate;}
+        .hedge-character.chew .hedge-mouth {animation:hedgeChew .24s ease-in-out infinite alternate;}
+        .hedge-character.sweep {right:46%;bottom:14%;}
+        .hedge-character.wipe {right:38%;bottom:32%;}
+        .hedge-character.books {right:43%;bottom:28%;}
+        @keyframes hedgeRead {to{transform:rotate(-5deg) translateY(2px)}}
+        @keyframes hedgeChew {to{transform:scaleY(1.8)}}
+        @keyframes hedgeIdle {0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-5px) rotate(1deg)}}
+        @keyframes hedgeBreath {0%,100%{transform:scale(1)}50%{transform:scale(1.025,.98)}}
+        @keyframes earTwitch {0%,88%,100%{transform:rotate(0)}91%{transform:rotate(-14deg)}94%{transform:rotate(5deg)}}
+        @keyframes hedgeBlink {0%,43%,46%,100%{transform:scaleY(1)}44%,45%{transform:scaleY(.12)}}
+        @keyframes cheekGlow {to{opacity:.55}}
+        .hedge-character.busy {right:48%;bottom:18%;animation:hedgeWork .38s ease-in-out infinite alternate;}
+        .hedge-character.busy .hedge-body {animation:hedgeBreath .5s infinite;}
+        .hedge-character.busy.sweep {right:47%;bottom:13%;}
+        .hedge-character.busy.wipe {right:37%;bottom:31%;}
+        .hedge-character.busy.books {right:42%;bottom:26%;}
+        .hedge-character.busy.page {right:47%;bottom:20%;}
+        .hedge-character.busy.chew {right:42%;bottom:18%;}
+        .hedge-character.run {right:24%;bottom:30%;animation:hedgeRun .18s ease-in-out infinite alternate;}
+        .hedge-character.sit {transform:scale(.91);}
+        @keyframes hedgeWork {to{transform:rotate(7deg) translateY(-5px)}}
+        @keyframes hedgeRun {to{transform:translateY(-9px) rotate(8deg)}}
+        .hedge-action {position:absolute;z-index:7;bottom:3%;left:8%;right:8%;text-align:center;color:#fff7e7;font-size:12px;font-weight:600;text-shadow:0 2px 5px #211820,0 0 10px #211820;padding:7px 10px;border-radius:14px;background:#382a2c77;backdrop-filter:blur(4px);}
         .hedge-controls {display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
-        .hedge-controls button {border:1px solid #ffffff30;border-radius:14px;padding:8px 11px;background:#152237;color:white;cursor:pointer;}
-        .hedge-log {height:66px;overflow:auto;background:#0b1220ad;border-radius:12px;padding:6px 9px;color:#e7edf7;font-size:10px;line-height:1.35;white-space:pre-wrap;}
+        .hedge-controls button {border:1px solid #ffffff30;border-radius:14px;padding:8px 11px;background:#152237;color:white;cursor:pointer;transition:transform .2s,box-shadow .2s;}
+        .hedge-controls button:hover {transform:translateY(-2px);box-shadow:0 5px 14px #05080e66;}
+        .hedge-log {height:66px;overflow:auto;background:#0b1220ad;border:1px solid #ffffff12;border-radius:12px;padding:6px 9px;color:#e7edf7;font-size:10px;line-height:1.35;white-space:pre-wrap;}
         .hedge-input-row {display:flex;gap:8px;}
         .hedge-input-row input {min-width:0;flex:1;border:1px solid #ffffff35;border-radius:20px;padding:11px 14px;background:#101827;color:white;}
-        .hedge-input-row button {border:0;border-radius:50%;width:44px;height:44px;background:#39a8bc;color:#fff;font-size:19px;}
+        .hedge-input-row input:focus {outline:none;border-color:#ffd58b;box-shadow:0 0 0 3px #ffd58b22;}
+        .hedge-input-row button {border:0;border-radius:50%;width:44px;height:44px;background:linear-gradient(135deg,#55c4ca,#378eab);color:#fff;font-size:19px;box-shadow:0 5px 14px #05080e55;transition:transform .2s;}
+        .hedge-input-row button:hover {transform:scale(1.07) rotate(-8deg);}
         .hedge-switch {display:flex;align-items:center;gap:5px;font-size:12px;}
+        @media (prefers-reduced-motion:reduce) {.hedgehog-screen *, .hedgehog-screen *:before,.hedgehog-screen *:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;}}
         /* ЭКРАНЫ */
         .screen { 
             display: none; 
@@ -909,9 +962,31 @@
             </div>
             <label class="hedge-switch"><input id="hedgeInitiative" type="checkbox" onchange="saveHedgeSettings({initiative:this.checked})"> Ёжик сам зовёт поговорить</label>
             <div class="hedge-scene">
-                <div class="hedge-window"></div><div class="hedge-shelf"></div><div class="hedge-books">📚📚</div>
+                <div class="hedge-wall"></div>
+                <div class="hedge-window"><span class="hedge-moon"></span></div>
+                <div class="hedge-curtain"></div><div class="hedge-curtain right"></div>
+                <div class="hedge-picture">🍄</div><div class="hedge-shelf"></div><div class="hedge-books">📚📚</div>
+                <div class="hedge-lamp"></div><div class="hedge-plant">🪴</div>
                 <div class="hedge-bed"></div><div class="hedge-drawer">ящик</div><div class="hedge-chair"></div><div class="hedge-rug"></div>
-                <div class="hedge-character sit" id="hedgeCharacter">🦔</div>
+                <span class="hedge-sparkle s1">✦</span><span class="hedge-sparkle s2">✧</span><span class="hedge-sparkle s3">✦</span>
+                <svg class="hedge-character sit" id="hedgeCharacter" viewBox="0 0 150 150" role="img" aria-label="Ёжик" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="hedgeSpines" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#604331"/><stop offset=".55" stop-color="#342b2b"/><stop offset="1" stop-color="#171e2a"/></linearGradient>
+                        <linearGradient id="hedgeFur" x1="0" y1="0" x2=".9" y2="1"><stop stop-color="#e7b879"/><stop offset="1" stop-color="#b9744e"/></linearGradient>
+                        <linearGradient id="hedgeMuzzle" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0ce"/><stop offset="1" stop-color="#d9a477"/></linearGradient>
+                    </defs>
+                    <g class="hedge-body">
+                        <ellipse cx="76" cy="134" rx="43" ry="8" fill="#33251f" opacity=".32"/>
+                        <path d="M30 104Q7 89 20 72l-9-7 17-5-8-13 20 4 1-19 17 12 8-22 13 22 14-18 5 25 19-12-1 24 20-4-12 19 18 8-23 10z" fill="url(#hedgeSpines)" stroke="#211d20" stroke-width="3" stroke-linejoin="round"/>
+                        <path d="M39 96q2-34 29-45 27-8 48 10 15 13 12 35-3 27-31 35-32 8-49-6-11-10-9-29" fill="url(#hedgeFur)" stroke="#8c573e" stroke-width="2"/>
+                        <path d="M78 82q20-20 42-9 17 9 9 27-8 17-30 18-18 1-27-9 11-5 6-27" fill="url(#hedgeMuzzle)"/>
+                        <ellipse class="hedge-ear" cx="55" cy="78" rx="10" ry="13" fill="#c98764" stroke="#8b563f" stroke-width="2"/><ellipse cx="57" cy="80" rx="5" ry="8" fill="#f1b79b"/>
+                        <ellipse class="hedge-eye" cx="91" cy="82" rx="4.5" ry="6" fill="#211c1e"/><circle cx="92" cy="80" r="1.5" fill="white"/>
+                        <ellipse class="hedge-cheek" cx="106" cy="97" rx="8" ry="4" fill="#e98778" opacity=".55"/>
+                        <path d="M125 91q12-7 15 0-3 9-14 5" fill="#302326"/><path class="hedge-mouth" d="M104 108q8 7 16 0" fill="none" stroke="#8d4f43" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M64 121q-9 7-5 13 9 3 18-1m23-12q10 5 8 13-8 4-17 0" fill="#d89b71" stroke="#8c573e" stroke-width="2"/>
+                    </g>
+                </svg>
                 <div class="hedge-action" id="hedgeAction">сидит в кресле и ждёт</div>
             </div>
             <div class="hedge-controls">
@@ -1559,10 +1634,11 @@
             const row = document.createElement("div"); row.textContent = `${who}: ${text}`; el.appendChild(row);
             while(el.children.length>150)el.removeChild(el.firstChild); el.scrollTop = el.scrollHeight;
         }
-        function hedgeScene(action, busy) {
+        function hedgeScene(action, busy, pose = "") {
             const c = document.getElementById("hedgeCharacter"), a = document.getElementById("hedgeAction");
             if (!c || !a) return;
-            c.className = "hedge-character " + (busy ? "busy" : "sit"); a.textContent = action;
+            c.setAttribute("class", "hedge-character " + (busy ? "busy" : "sit") + (pose ? " " + pose : ""));
+            a.textContent = action;
         }
         function hedgeVoicesRefresh() {
             const sel = document.getElementById("hedgeVoiceSelect"); if (!sel || !window.speechSynthesis) return;
@@ -1571,11 +1647,13 @@
             if (voices.length) { sel.value = voices.some(v => v.name === hedgeVoiceName) ? hedgeVoiceName : (voiceName || pickVoice()?.name || voices[0].name); hedgeVoiceName = sel.value; }
         }
         function hedgeSpeak(text, onend=null) {
-            if (!hedgeVoiceEnabled || !window.speechSynthesis || !text) { if(onend)onend(); return; }
+            const character=document.getElementById("hedgeCharacter");
+            if (character) character.classList.add("talking");
+            if (!hedgeVoiceEnabled || !window.speechSynthesis || !text) { if(character)character.classList.remove("talking"); if(onend)onend(); return; }
             try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); const vs = speechSynthesis.getVoices() || [];
                 const v = vs.find(x => x.name === hedgeVoiceName) || pickVoice(); if (v) { u.voice = v; u.lang = v.lang || voiceLang(); } else u.lang = voiceLang();
-                u.rate = 0.95; u.pitch = 1; if(onend)u.onend=u.onerror=onend; speechSynthesis.speak(u);
-            } catch (e) { if(onend)onend(); }
+                u.rate = 0.95; u.pitch = 1; u.onend=u.onerror=()=>{if(character)character.classList.remove("talking");if(onend)onend();}; speechSynthesis.speak(u);
+            } catch (e) { if(character)character.classList.remove("talking");if(onend)onend(); }
         }
         function paintHedgeVoice() { const b = document.getElementById("hedgeVoiceBtn"); if (b) b.textContent = hedgeVoiceEnabled ? "🔊 Голос" : "🔇 Голос"; }
         function toggleHedgeVoice() { hedgeVoiceEnabled = !hedgeVoiceEnabled; localStorage.setItem("hedge_voice", hedgeVoiceEnabled ? "on" : "off"); paintHedgeVoice(); if (!hedgeVoiceEnabled && window.speechSynthesis) speechSynthesis.cancel(); }
@@ -1600,13 +1678,13 @@
         }
         function hedgeRunToChair() {
             const c=document.getElementById("hedgeCharacter"); if(!c)return;
-            c.className="hedge-character run"; hedgePlaySound("footsteps");
-            hedgeRunTimer=setTimeout(()=>{if(!hedgeRoomOpen)return;c.className="hedge-character sit";hedgePlaySound("chair");hedgeRunTimer=null;},700);
+            c.setAttribute("class","hedge-character run"); hedgePlaySound("footsteps");
+            hedgeRunTimer=setTimeout(()=>{if(!hedgeRoomOpen)return;c.setAttribute("class","hedge-character sit");hedgePlaySound("chair");hedgeRunTimer=null;},700);
         }
         function hedgeSayLine(line, onend=null) { hedgeLog(hedgeName,line); hedgeSpeak(line,onend); }
         function hedgeActivity(afterSilence=false) {
             if(!hedgeRoomOpen||hedgeBusy)return;
-            const activity=HEDGE_ACTIVITIES[Math.floor(Math.random()*HEDGE_ACTIVITIES.length)]; hedgeBusy=true; hedgeScene(activity.label,true);
+            const activity=HEDGE_ACTIVITIES[Math.floor(Math.random()*HEDGE_ACTIVITIES.length)]; hedgeBusy=true; hedgeScene(activity.label,true,activity.sound);
             if(activity.sound==="chew") { hedgePlaySound("drawer"); setTimeout(()=>hedgePlaySound("rummage"),700); setTimeout(()=>hedgePlaySound("root"),1550); setTimeout(()=>hedgePlaySound("chew"),2200); }
             else { hedgePlaySound("footsteps"); setTimeout(()=>hedgePlaySound(activity.sound),450); }
             hedgeSayLine(activity.line);
