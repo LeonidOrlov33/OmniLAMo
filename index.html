@@ -187,9 +187,12 @@
         .hedge-sparkle.s1{left:46%;top:18%;animation-delay:-.4s}.hedge-sparkle.s2{left:80%;top:43%;font-size:11px;animation-delay:-1.8s}.hedge-sparkle.s3{left:56%;top:39%;font-size:12px;animation-delay:-2.5s}
         @keyframes sparkleFloat {0%,100%{opacity:.15;transform:translateY(4px) scale(.7) rotate(0)}50%{opacity:1;transform:translateY(-8px) scale(1.15) rotate(70deg)}}
         .hedge-character {position:absolute;right:16%;bottom:29%;width:clamp(76px,21vw,128px);height:auto;filter:drop-shadow(0 9px 5px #34291f99);transform-origin:50% 85%;transition:right .8s cubic-bezier(.2,.8,.2,1),bottom .8s,transform .5s;z-index:3;overflow:visible;animation:hedgeIdle 3.2s ease-in-out infinite;}
-        .hedge-character .hedge-body {animation:hedgeBreath 2.4s ease-in-out infinite;transform-origin:50% 90%;}
+        .hedge-character .hedge-body {transform-box:fill-box;transform-origin:50% 90%;animation:hedgeBreath 2.4s ease-in-out infinite;}
         .hedge-character .hedge-ear {animation:earTwitch 5s ease-in-out infinite;transform-origin:center;}
-        .hedge-character .hedge-eye {animation:hedgeBlink 5.5s infinite;transform-origin:center;}
+        .hedge-character .hedge-eye {animation:hedgeBlink 5.5s infinite;transform-box:fill-box;transform-origin:center;}
+        .hedge-character .hedge-ear {transform-box:fill-box;transform-origin:center;}
+        .hedge-character .hedge-mouth {transform-box:fill-box;transform-origin:center;}
+        .hedge-character .hedge-whiskers {transform-box:fill-box;transform-origin:center;}
         .hedge-character .hedge-cheek {animation:cheekGlow 2s ease-in-out infinite alternate;}
         .hedge-character .hedge-mouth {transform-origin:125px 95px;}
         .hedge-character.talking .hedge-mouth {animation:hedgeTalk .2s ease-in-out infinite alternate;}
@@ -199,15 +202,15 @@
         .hedge-character.sweep {right:46%;bottom:14%;}
         .hedge-character.wipe {right:38%;bottom:32%;}
         .hedge-character.books {right:43%;bottom:28%;}
-        @keyframes hedgeRead {to{transform:rotate(-5deg) translateY(2px)}}
-        @keyframes hedgeChew {to{transform:scaleY(1.8)}}
-        @keyframes hedgeIdle {0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-5px) rotate(1deg)}}
+        @keyframes hedgeRead {to{transform:rotate(-5deg) translateY(2px) scale(1.025,.98)}}
+        @keyframes hedgeChew {to{transform:scale(1,1.8)}}
+        @keyframes hedgeIdle {0%,100%{transform:translateY(0) rotate(-1deg) scale(.91)}50%{transform:translateY(-5px) rotate(1deg) scale(.91)}}
         @keyframes hedgeBreath {0%,100%{transform:scale(1)}50%{transform:scale(1.025,.98)}}
         @keyframes earTwitch {0%,88%,100%{transform:rotate(0)}91%{transform:rotate(-14deg)}94%{transform:rotate(5deg)}}
         @keyframes hedgeBlink {0%,43%,46%,100%{transform:scaleY(1)}44%,45%{transform:scaleY(.12)}}
         @keyframes cheekGlow {to{opacity:.55}}
         .hedge-character.busy {right:48%;bottom:18%;animation:hedgeWork .38s ease-in-out infinite alternate;}
-        .hedge-character.busy .hedge-body {animation:hedgeBreath .5s infinite;}
+        .hedge-character.busy .hedge-body {animation:hedgeBreath .5s ease-in-out infinite;}
         .hedge-character.busy.sweep {right:47%;bottom:13%;}
         .hedge-character.busy.wipe {right:37%;bottom:31%;}
         .hedge-character.busy.books {right:42%;bottom:26%;}
@@ -215,8 +218,8 @@
         .hedge-character.busy.chew {right:42%;bottom:18%;}
         .hedge-character.run {right:24%;bottom:30%;animation:hedgeRun .18s ease-in-out infinite alternate;}
         .hedge-character.sit {transform:scale(.91);}
-        @keyframes hedgeWork {to{transform:rotate(7deg) translateY(-5px)}}
-        @keyframes hedgeRun {to{transform:translateY(-9px) rotate(8deg)}}
+        @keyframes hedgeWork {to{transform:rotate(7deg) translateY(-5px) scale(.91)}}
+        @keyframes hedgeRun {to{transform:translateY(-9px) rotate(8deg) scale(.91)}}
         .hedge-action {position:absolute;z-index:7;bottom:3%;left:8%;right:8%;text-align:center;color:#fff7e7;font-size:12px;font-weight:600;text-shadow:0 2px 5px #211820,0 0 10px #211820;padding:7px 10px;border-radius:14px;background:#382a2c77;backdrop-filter:blur(4px);}
         .hedge-controls {display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
         .hedge-controls button {border:1px solid #ffffff30;border-radius:14px;padding:8px 11px;background:#152237;color:white;cursor:pointer;transition:transform .2s,box-shadow .2s;}
@@ -260,7 +263,7 @@
         .hedge-books i:nth-child(2){height:31px;background:linear-gradient(90deg,#475653,#8e9a7b 28%,#526456 80%);transform:rotate(-4deg)}
         .hedge-books i:nth-child(3){height:23px;background:linear-gradient(90deg,#6c4936,#d2a16b 28%,#9b6847 80%);transform:rotate(3deg)}
         .hedge-books i:nth-child(4){height:28px;background:linear-gradient(90deg,#4d455d,#9b83a4 28%,#695772 80%);}
-        .hedge-plant {width:48px;height:66px;font-size:0;filter:drop-shadow(0 4px 3px #261d1c66);}
+        .hedge-plant {width:48px;height:66px;font-size:0;filter:drop-shadow(0 4px 3px #261d1c66);transform:translateX(-5px);}
         .hedge-plant b {position:absolute;bottom:0;left:8px;width:34px;height:25px;border-radius:3px 3px 12px 12px;background:linear-gradient(90deg,#8b4f3e,#cf8961 48%,#7c4838);box-shadow:inset 0 4px #e1a174;}
         .hedge-plant i {position:absolute;bottom:21px;left:23px;width:13px;height:31px;border-radius:100% 0 100% 0;background:linear-gradient(135deg,#9fc184,#42634e);transform-origin:bottom center;box-shadow:inset 2px 1px #d0dda866;}
         .hedge-plant i:nth-child(1){transform:rotate(-39deg);height:27px;left:13px;bottom:23px;}
@@ -272,13 +275,14 @@
         @keyframes dustDrift {0%,100%{opacity:0;transform:translate(0,8px)}20%,75%{opacity:.6}50%{transform:translate(10px,-14px)}}
         .hedge-plant i {animation:leafSway 4.6s ease-in-out infinite;}
         .hedge-plant i:nth-child(2){animation-delay:-1s}.hedge-plant i:nth-child(3){animation-delay:-2s}
-        @keyframes leafSway {0%,100%{margin-left:0}50%{margin-left:2px}}
+        @keyframes leafSway {0%,100%{rotate:0deg}50%{rotate:5deg}}
         .hedge-character .hedge-whiskers {transform-origin:128px 105px;animation:whiskerTwitch 7s ease-in-out infinite;}
         .hedge-character.talking .hedge-whiskers {animation:whiskerTwitch .28s ease-in-out infinite alternate;}
         @keyframes whiskerTwitch {0%,90%,100%{transform:rotate(0)}93%{transform:rotate(-2deg)}96%{transform:rotate(1deg)}}
         .hedge-character .hedge-nose-glint {animation:noseShine 4s ease-in-out infinite;}
         @keyframes noseShine {0%,70%,100%{opacity:.45}80%{opacity:.9}}
-        .hedge-character.busy.sweep {transform:rotate(-4deg)}
+        .hedge-character.busy.sweep {animation:hedgeSweep .38s ease-in-out infinite alternate;}
+        @keyframes hedgeSweep {from{transform:rotate(-4deg) translateY(0)}to{transform:rotate(2deg) translateY(-3px)}}
         .hedge-character.run {transition:right .65s cubic-bezier(.2,.8,.2,1);}
         @media (prefers-reduced-motion:reduce) {.hedgehog-screen *, .hedgehog-screen *:before,.hedgehog-screen *:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;}}
         /* ЭКРАНЫ */
