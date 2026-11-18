@@ -228,6 +228,58 @@
         .hedge-input-row button {border:0;border-radius:50%;width:44px;height:44px;background:linear-gradient(135deg,#55c4ca,#378eab);color:#fff;font-size:19px;box-shadow:0 5px 14px #05080e55;transition:transform .2s;}
         .hedge-input-row button:hover {transform:scale(1.07) rotate(-8deg);}
         .hedge-switch {display:flex;align-items:center;gap:5px;font-size:12px;}
+        /* Тёплый камерный интерьер с материальными фактурами и мягким светом. */
+        .hedge-scene {
+            background:repeating-linear-gradient(0deg,transparent 0 25px,#3b241e44 26px,#d49a6744 27px,#3b241e22 29px),repeating-linear-gradient(90deg,#875b43 0 29%,#603d32 29.4% 30%,#9a694b 30.5% 59%,#58382f 59.5% 60%,#81553e 60.5% 100%);
+            box-shadow:0 22px 44px #080d18a0,inset 0 0 55px #10101a88,inset 0 -22px 35px #261a19aa;
+        }
+        .hedge-wall {background:linear-gradient(180deg,#697a81 0%,#9b8176 67%,#b59279 100%);}
+        .hedge-wall:before {content:"";position:absolute;inset:0 0 18%;opacity:.22;background:repeating-linear-gradient(90deg,transparent 0 47px,#ecd5b733 48px,#533e3a22 49px,transparent 51px),repeating-linear-gradient(0deg,transparent 0 42px,#ffe6ca22 43px,transparent 44px);}
+        .hedge-wall:after {content:"";position:absolute;left:0;right:0;bottom:0;height:19%;background:linear-gradient(180deg,#bc987c 0 8%,#765640 9% 12%,#a77b5b 13% 86%,#49352f 87% 100%);box-shadow:0 -2px 8px #ffe4bd33;}
+        .hedge-scene:before {background:radial-gradient(ellipse at 77% 31%,#ffd7835c,transparent 39%),linear-gradient(115deg,#1c263622,transparent 42%,#311c2440);animation:roomLight 10s ease-in-out infinite alternate;}
+        .hedge-window {border:9px solid #674632;background:linear-gradient(180deg,#344d70 0%,#e79e76 54%,#f7d4a1 100%);box-shadow:inset 0 0 0 2px #f9dfb5,inset 0 0 18px #fff1d588,0 8px 15px #22171d88,0 0 0 2px #3d2b29;}
+        .hedge-moon {background:radial-gradient(circle at 34% 31%,#fffef0,#ffedb5 68%,#e8c783);box-shadow:0 0 17px 4px #fff0bd88,0 0 40px #ffe2a877;}
+        .hedge-curtain {width:7%;background:repeating-linear-gradient(90deg,#703c48 0 4px,#a94f5b 5px 9px,#c06c6b 10px 13px);box-shadow:inset -5px 0 7px #482b3455;}
+        .hedge-bed {background:linear-gradient(155deg,#9b7157,#513a34 70%);box-shadow:inset 0 2px 2px #d9b18a66,0 13px #392d2b,0 18px 10px #241b1c88;}
+        .hedge-bed:before {background:linear-gradient(140deg,#fff4de,#d3b493);box-shadow:inset 0 -4px #b99a7d,0 3px 7px #412d2788;}
+        .hedge-bed:after {background:repeating-linear-gradient(135deg,#a95054 0 8px,#c36b68 9px 16px,#d48777 17px 19px);box-shadow:inset 0 4px #e9aa8e,0 3px 6px #432b3180;}
+        .hedge-chair {background:linear-gradient(120deg,#cf9566,#92583d 55%,#744735);box-shadow:inset 0 0 0 3px #e3b17a66,inset 0 8px 13px #f5ca8a38,0 7px 9px #25191c88;}
+        .hedge-rug {background:repeating-radial-gradient(ellipse at 50% 42%,#d39a70 0 3px,#a9634d 4px 7px,#c17d5c 8px 11px);filter:drop-shadow(0 4px 3px #21181988);}
+        .hedge-character {filter:drop-shadow(0 10px 6px #211916aa) drop-shadow(0 0 1px #fff2d933);}
+        .hedge-character .hedge-eye {animation:hedgeBlink 6.7s infinite;}
+        .hedge-character .hedge-ear {animation-duration:6.3s;}
+        .hedge-character .hedge-body {animation:hedgeBreath 3.1s cubic-bezier(.45,0,.55,1) infinite;}
+        .hedge-character.busy .hedge-body {animation-duration:.8s;}
+        @keyframes hedgeBreath {0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-1px) scale(1.018,.99)}}
+        .hedge-action {background:linear-gradient(90deg,#211d20aa,#382a2c88,#211d20aa);border:1px solid #f5dcb222;box-shadow:0 3px 12px #20181955;}
+        .hedge-picture {display:grid;place-items:center;color:#7d5542;background:linear-gradient(145deg,#f8dfb5,#d49c6d);box-shadow:inset 0 0 0 3px #fff1d477,0 4px 9px #241d2477;}
+        .hedge-picture span {font-size:20px;text-shadow:0 1px #fff3c7;}
+        .hedge-books {display:flex;align-items:flex-end;gap:2px;width:76px;height:34px;font-size:0;letter-spacing:0;filter:drop-shadow(0 3px 2px #211b1a77);}
+        .hedge-books:after {content:"";position:absolute;left:-4px;right:-5px;bottom:-3px;height:4px;border-radius:2px;background:#613f31;}
+        .hedge-books i {display:block;width:15px;height:26px;border-radius:3px 3px 1px 1px;background:linear-gradient(90deg,#6a4541,#ba7661 25%,#8b5148 80%);border:1px solid #52372f;box-shadow:inset 2px 0 #f2c18a55;}
+        .hedge-books i:nth-child(2){height:31px;background:linear-gradient(90deg,#475653,#8e9a7b 28%,#526456 80%);transform:rotate(-4deg)}
+        .hedge-books i:nth-child(3){height:23px;background:linear-gradient(90deg,#6c4936,#d2a16b 28%,#9b6847 80%);transform:rotate(3deg)}
+        .hedge-books i:nth-child(4){height:28px;background:linear-gradient(90deg,#4d455d,#9b83a4 28%,#695772 80%);}
+        .hedge-plant {width:48px;height:66px;font-size:0;filter:drop-shadow(0 4px 3px #261d1c66);}
+        .hedge-plant b {position:absolute;bottom:0;left:8px;width:34px;height:25px;border-radius:3px 3px 12px 12px;background:linear-gradient(90deg,#8b4f3e,#cf8961 48%,#7c4838);box-shadow:inset 0 4px #e1a174;}
+        .hedge-plant i {position:absolute;bottom:21px;left:23px;width:13px;height:31px;border-radius:100% 0 100% 0;background:linear-gradient(135deg,#9fc184,#42634e);transform-origin:bottom center;box-shadow:inset 2px 1px #d0dda866;}
+        .hedge-plant i:nth-child(1){transform:rotate(-39deg);height:27px;left:13px;bottom:23px;}
+        .hedge-plant i:nth-child(2){transform:rotate(-15deg);height:36px;left:17px;}
+        .hedge-plant i:nth-child(3){transform:rotate(19deg);height:34px;left:25px;}
+        .hedge-plant i:nth-child(4){transform:rotate(43deg);height:26px;left:29px;bottom:23px;}
+        .hedge-dust {position:absolute;z-index:2;width:3px;height:3px;border-radius:50%;background:#ffe8bf;box-shadow:0 0 7px 2px #ffdd9b77;pointer-events:none;animation:dustDrift 7s ease-in-out infinite;}
+        .hedge-dust.d1{left:44%;top:30%;animation-delay:-2s}.hedge-dust.d2{left:72%;top:42%;animation-delay:-4.5s;width:2px;height:2px}.hedge-dust.d3{left:57%;top:18%;animation-delay:-1s}.hedge-dust.d4{left:36%;top:55%;animation-delay:-5.3s;width:2px;height:2px}
+        @keyframes dustDrift {0%,100%{opacity:0;transform:translate(0,8px)}20%,75%{opacity:.6}50%{transform:translate(10px,-14px)}}
+        .hedge-plant i {animation:leafSway 4.6s ease-in-out infinite;}
+        .hedge-plant i:nth-child(2){animation-delay:-1s}.hedge-plant i:nth-child(3){animation-delay:-2s}
+        @keyframes leafSway {0%,100%{margin-left:0}50%{margin-left:2px}}
+        .hedge-character .hedge-whiskers {transform-origin:128px 105px;animation:whiskerTwitch 7s ease-in-out infinite;}
+        .hedge-character.talking .hedge-whiskers {animation:whiskerTwitch .28s ease-in-out infinite alternate;}
+        @keyframes whiskerTwitch {0%,90%,100%{transform:rotate(0)}93%{transform:rotate(-2deg)}96%{transform:rotate(1deg)}}
+        .hedge-character .hedge-nose-glint {animation:noseShine 4s ease-in-out infinite;}
+        @keyframes noseShine {0%,70%,100%{opacity:.45}80%{opacity:.9}}
+        .hedge-character.busy.sweep {transform:rotate(-4deg)}
+        .hedge-character.run {transition:right .65s cubic-bezier(.2,.8,.2,1);}
         @media (prefers-reduced-motion:reduce) {.hedgehog-screen *, .hedgehog-screen *:before,.hedgehog-screen *:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;}}
         /* ЭКРАНЫ */
         .screen { 
@@ -965,26 +1017,39 @@
                 <div class="hedge-wall"></div>
                 <div class="hedge-window"><span class="hedge-moon"></span></div>
                 <div class="hedge-curtain"></div><div class="hedge-curtain right"></div>
-                <div class="hedge-picture">🍄</div><div class="hedge-shelf"></div><div class="hedge-books">📚📚</div>
-                <div class="hedge-lamp"></div><div class="hedge-plant">🪴</div>
+                <div class="hedge-picture"><span>✿</span></div><div class="hedge-shelf"></div><div class="hedge-books" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                <div class="hedge-lamp"></div><div class="hedge-plant" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
                 <div class="hedge-bed"></div><div class="hedge-drawer">ящик</div><div class="hedge-chair"></div><div class="hedge-rug"></div>
-                <span class="hedge-sparkle s1">✦</span><span class="hedge-sparkle s2">✧</span><span class="hedge-sparkle s3">✦</span>
-                <svg class="hedge-character sit" id="hedgeCharacter" viewBox="0 0 150 150" role="img" aria-label="Ёжик" xmlns="http://www.w3.org/2000/svg">
+                <span class="hedge-dust d1" aria-hidden="true"></span><span class="hedge-dust d2" aria-hidden="true"></span><span class="hedge-dust d3" aria-hidden="true"></span><span class="hedge-dust d4" aria-hidden="true"></span>
+                <svg class="hedge-character sit" id="hedgeCharacter" viewBox="0 0 170 160" role="img" aria-label="Ёжик" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <linearGradient id="hedgeSpines" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#604331"/><stop offset=".55" stop-color="#342b2b"/><stop offset="1" stop-color="#171e2a"/></linearGradient>
-                        <linearGradient id="hedgeFur" x1="0" y1="0" x2=".9" y2="1"><stop stop-color="#e7b879"/><stop offset="1" stop-color="#b9744e"/></linearGradient>
-                        <linearGradient id="hedgeMuzzle" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0ce"/><stop offset="1" stop-color="#d9a477"/></linearGradient>
+                        <linearGradient id="hedgeSpines" x1=".15" y1="0" x2=".8" y2="1"><stop stop-color="#8c6548"/><stop offset=".24" stop-color="#49352e"/><stop offset=".7" stop-color="#29252a"/><stop offset="1" stop-color="#171a22"/></linearGradient>
+                        <linearGradient id="hedgeQuill" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#211d20"/><stop offset=".5" stop-color="#bb9470"/><stop offset=".7" stop-color="#392b2b"/><stop offset="1" stop-color="#171820"/></linearGradient>
+                        <linearGradient id="hedgeFur" x1=".2" y1="0" x2=".8" y2="1"><stop stop-color="#f3cf91"/><stop offset=".42" stop-color="#d99d68"/><stop offset="1" stop-color="#9f6146"/></linearGradient>
+                        <radialGradient id="hedgeMuzzle" cx=".36" cy=".25" r=".8"><stop stop-color="#fff4dc"/><stop offset=".6" stop-color="#f0cfaa"/><stop offset="1" stop-color="#c48c6a"/></radialGradient>
+                        <radialGradient id="hedgeEye"><stop stop-color="#fff"/><stop offset=".18" stop-color="#49302a"/><stop offset=".58" stop-color="#171619"/><stop offset="1" stop-color="#08090d"/></radialGradient>
+                        <filter id="hedgeSoftShadow" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur stdDeviation="2.2"/></filter>
+                        <pattern id="hedgeFurLines" width="8" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(18)"><path d="M1 0v5M5 3v5" stroke="#fff0cf" stroke-opacity=".32" stroke-width=".65"/><path d="M3 1v4" stroke="#8d593e" stroke-opacity=".25" stroke-width=".55"/></pattern>
+                        <clipPath id="hedgeBodyClip"><path d="M42 99Q35 77 51 62Q73 43 104 53Q128 59 139 83Q151 108 130 128Q108 146 75 138Q49 132 42 114Z"/></clipPath>
                     </defs>
                     <g class="hedge-body">
-                        <ellipse cx="76" cy="134" rx="43" ry="8" fill="#33251f" opacity=".32"/>
-                        <path d="M30 104Q7 89 20 72l-9-7 17-5-8-13 20 4 1-19 17 12 8-22 13 22 14-18 5 25 19-12-1 24 20-4-12 19 18 8-23 10z" fill="url(#hedgeSpines)" stroke="#211d20" stroke-width="3" stroke-linejoin="round"/>
-                        <path d="M39 96q2-34 29-45 27-8 48 10 15 13 12 35-3 27-31 35-32 8-49-6-11-10-9-29" fill="url(#hedgeFur)" stroke="#8c573e" stroke-width="2"/>
-                        <path d="M78 82q20-20 42-9 17 9 9 27-8 17-30 18-18 1-27-9 11-5 6-27" fill="url(#hedgeMuzzle)"/>
-                        <ellipse class="hedge-ear" cx="55" cy="78" rx="10" ry="13" fill="#c98764" stroke="#8b563f" stroke-width="2"/><ellipse cx="57" cy="80" rx="5" ry="8" fill="#f1b79b"/>
-                        <ellipse class="hedge-eye" cx="91" cy="82" rx="4.5" ry="6" fill="#211c1e"/><circle cx="92" cy="80" r="1.5" fill="white"/>
-                        <ellipse class="hedge-cheek" cx="106" cy="97" rx="8" ry="4" fill="#e98778" opacity=".55"/>
-                        <path d="M125 91q12-7 15 0-3 9-14 5" fill="#302326"/><path class="hedge-mouth" d="M104 108q8 7 16 0" fill="none" stroke="#8d4f43" stroke-width="2" stroke-linecap="round"/>
-                        <path d="M64 121q-9 7-5 13 9 3 18-1m23-12q10 5 8 13-8 4-17 0" fill="#d89b71" stroke="#8c573e" stroke-width="2"/>
+                        <ellipse cx="89" cy="146" rx="48" ry="8" fill="#211918" opacity=".45" filter="url(#hedgeSoftShadow)"/>
+                        <path d="M39 112Q20 110 18 99L7 94 18 88 5 78 23 77 18 61 37 68 41 48 56 61 67 37 79 57 96 33 102 57 122 45 119 67 143 63 132 82 154 89 135 100 146 116 124 116 114 135 95 126 74 140 61 125 43 132Z" fill="url(#hedgeSpines)" stroke="#21191b" stroke-width="2.6" stroke-linejoin="round"/>
+                        <g fill="none" stroke="url(#hedgeQuill)" stroke-linecap="round" opacity=".95">
+                            <path d="M30 91L19 76M39 82L31 60M50 74L45 51M62 67L62 45M75 62L79 42M89 61L98 43M103 64L116 48M116 70L133 59M126 79L146 72M130 91L150 89M126 105L145 112M114 116L129 132M99 120L106 139M83 121L84 143M67 117L58 139M53 107L39 125" stroke-width="3.5"/>
+                            <path d="M34 97L23 88M44 85L38 70M56 76L54 60M70 68L72 52M84 65L90 49M99 68L108 54M112 77L127 67M119 89L139 84M116 101L133 108M104 111L115 128M88 115L91 132M72 111L66 129" stroke="#e2c19b" stroke-opacity=".5" stroke-width="1"/>
+                        </g>
+                        <path d="M43 101Q40 78 57 64Q79 47 107 57Q133 66 139 90Q145 114 124 131Q102 145 73 137Q50 131 43 114Z" fill="url(#hedgeFur)" stroke="#965f43" stroke-width="1.5"/>
+                        <rect x="39" y="47" width="108" height="100" fill="url(#hedgeFurLines)" clip-path="url(#hedgeBodyClip)" opacity=".8"/>
+                        <path d="M91 83Q109 68 129 79Q144 87 137 104Q131 119 111 121Q96 122 86 112Q96 103 91 83Z" fill="url(#hedgeMuzzle)" stroke="#c28b68" stroke-opacity=".55"/>
+                        <ellipse class="hedge-ear" cx="62" cy="83" rx="11" ry="14" fill="#c88462" stroke="#995d45" stroke-width="1.5"/><ellipse cx="64" cy="84" rx="6" ry="9" fill="#efb79a"/><ellipse cx="63" cy="83" rx="3" ry="5" fill="#d98c78" opacity=".55"/>
+                        <ellipse class="hedge-eye" cx="107" cy="85" rx="5.3" ry="6.5" fill="url(#hedgeEye)"/><circle cx="108.5" cy="82.5" r="1.7" fill="white"/><circle cx="105" cy="88" r=".8" fill="#eebc7c"/>
+                        <ellipse class="hedge-cheek" cx="119" cy="101" rx="9" ry="5" fill="#d97870" opacity=".38"/>
+                        <path d="M137 91Q150 84 155 91Q153 100 141 99Q136 97 137 91Z" fill="#342325" stroke="#6f4540" stroke-width="1"/><ellipse class="hedge-nose-glint" cx="149" cy="91" rx="2" ry="1.2" fill="#fff1d8" opacity=".75"/>
+                        <g class="hedge-whiskers" fill="none" stroke="#f8e5ca" stroke-opacity=".65" stroke-width=".65" stroke-linecap="round"><path d="M130 102q13-5 22-3M130 105q13 0 19 4M129 108q10 4 14 8"/><path d="M114 102q-9-5-14-4M114 105q-8 0-13 3" stroke-opacity=".35"/></g>
+                        <path class="hedge-mouth" d="M116 112q8 7 16 0" fill="none" stroke="#925448" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M75 132Q67 138 69 145Q78 149 89 144M104 136Q114 140 112 147Q104 151 95 146" fill="#d99a70" stroke="#985f45" stroke-width="1.7"/><path d="M73 143q7 2 13-1m12 2q7 2 12-1" fill="none" stroke="#f1c49a" stroke-width="1" opacity=".8"/>
+                        <path d="M115 105l13 1m-13 3 11 2" stroke="#b17c62" stroke-width=".6" opacity=".6"/>
                     </g>
                 </svg>
                 <div class="hedge-action" id="hedgeAction">сидит в кресле и ждёт</div>
