@@ -48,6 +48,8 @@ UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 # 50 МБ — с запасом хватает документам, картинкам и архивам с сайтов.
 MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024
 MAX_DOWNLOAD_MB = MAX_DOWNLOAD_BYTES // (1024 * 1024)
+MAX_PAGE_BYTES = 5 * 1024 * 1024
+MAX_REDIRECTS = 5
 
 # Парсинг
 import requests
@@ -686,39 +688,101 @@ def _safe_public_url(url: str):
     if not candidates:
         return False, f"Не удалось разрешить адрес: {host}"
     for ip in candidates:
+        # IPv4-mapped IPv6 нельзя пропускать лишь потому, что проверка сетей
+        # сравнивает версии: ::ffff:127.0.0.1 также указывает на loopback.
+        check_ip = ip.ipv4_mapped or ip
         for net in _LOOPBACK_NETS + _PRIVATE_NETS:
-            if ip.version == net.version and ip in net:
+            if check_ip.version == net.version and check_ip in net:
                 return False, "Внутренние адреса недоступны"
-        if ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+        if check_ip.is_multicast or check_ip.is_reserved or check_ip.is_unspecified:
             return False, "Недопустимый адрес"
     return True, ""
 
 
+def _safe_get(url: str, timeout: int = 15, *, stream: bool = False,
+              headers=None, max_bytes: int | None = None):
+    """GET, проверяя каждый redirect и ограничивая размер тела.
+
+    requests автоматически следует редиректам, из-за чего DNS-проверка только
+    исходного адреса не защищает от перенаправления на localhost/metadata.
+    Здесь редиректы выполняются вручную: каждый новый адрес разрешается и
+    проверяется до подключения. Потоковые ответы с max_bytes читаются вызывающим
+    кодом с дополнительным лимитом на фактически полученные байты.
+    """
+    current = url
+    request_headers = headers or browser_headers()
+    for redirect_count in range(MAX_REDIRECTS + 1):
+        ok, reason = _safe_public_url(current)
+        if not ok:
+            raise ValueError(reason)
+        res = requests.get(current, timeout=timeout, headers=request_headers,
+                           stream=True, allow_redirects=False)
+        if res.is_redirect or res.is_permanent_redirect:
+            location = res.headers.get("Location")
+            res.close()
+            if not location:
+                raise ValueError("Сервер вернул редирект без адреса")
+            if redirect_count >= MAX_REDIRECTS:
+                raise ValueError("Слишком много перенаправлений")
+            current = urllib.parse.urljoin(current, location)
+            continue
+        # Проверка окончательного URL остаётся полезной защитой для адаптеров
+        # requests и тестовых замен, даже если redirects отключены.
+        ok, reason = _safe_public_url(res.url)
+        if not ok:
+            res.close()
+            raise ValueError(reason)
+        try:
+            res.raise_for_status()
+        except Exception:
+            res.close()
+            raise
+        declared = res.headers.get("Content-Length")
+        if max_bytes is not None and declared and declared.isdigit() and int(declared) > max_bytes:
+            res.close()
+            raise ValueError(f"Ответ больше допустимых {max_bytes} байт")
+        if max_bytes is not None and not stream:
+            body = bytearray()
+            try:
+                for chunk in res.iter_content(65536):
+                    if not chunk:
+                        continue
+                    body.extend(chunk)
+                    if len(body) > max_bytes:
+                        raise ValueError(f"Ответ больше допустимых {max_bytes} байт")
+            finally:
+                res.close()
+            res._content = bytes(body)
+            res._content_consumed = True
+        return res
+    raise ValueError("Слишком много перенаправлений")
+
+
 def _download(url: str, timeout: int):
-    """GET страницы: случайный браузерный UA, при 403 — повтор с честным UA."""
-    ok, reason = _safe_public_url(url)
-    if not ok:
-        # Запрос идёт от имени сервера: без этой проверки чужая ссылка
-        # могла заставить его прочитать внутренний сервис (SSRF).
-        raise ValueError(reason)
-    # Случайный UA на каждый запрос: один и тот же выдаёт робота и ускоряет
-    # получение капчи (см. USER_AGENTS).
-    res = requests.get(url, timeout=timeout, headers=browser_headers())
-    if res.status_code == 403:
-        res = requests.get(url, timeout=timeout, headers=HONEST_HEADERS)
-    res.raise_for_status()
+    """GET страницы с проверкой редиректов и ограничением размера."""
+    try:
+        res = _safe_get(url, timeout, max_bytes=MAX_PAGE_BYTES)
+    except Exception as first_error:
+        # Сохраняем существующий fallback по честному User-Agent для 403.
+        if "403" not in str(first_error):
+            raise
+        res = _safe_get(url, timeout, headers=HONEST_HEADERS,
+                        max_bytes=MAX_PAGE_BYTES)
     return res
 
 
 def http_get_text(url: str, timeout: int = 15) -> str:
     """Скачивает страницу и возвращает текст. Определяет кодировку по ответу."""
     res = _download(url, timeout)
-    res.raise_for_status()
-    # requests угадывает кодировку по HTTP-заголовку и часто ошибается на русских сайтах,
-    # поэтому сначала смотрим на <meta charset>, и только потом на догадку requests.
-    if not res.encoding or res.encoding.lower() in ("iso-8859-1", "ascii"):
-        res.encoding = res.apparent_encoding or "utf-8"
-    return res.text
+    try:
+        res.raise_for_status()
+        # requests угадывает кодировку по HTTP-заголовку и часто ошибается на русских сайтах,
+        # поэтому сначала смотрим на <meta charset>, и только потом на догадку requests.
+        if not res.encoding or res.encoding.lower() in ("iso-8859-1", "ascii"):
+            res.encoding = res.apparent_encoding or "utf-8"
+        return res.text
+    finally:
+        res.close()
 
 
 def page_to_text(html: str, limit: int = 4000) -> str:
@@ -3546,26 +3610,35 @@ TEXT_UPLOAD_EXTS = (
 MAX_UPLOAD_READ_CHARS = 20000
 
 
-def uploaded_files():
-    """Имена файлов в uploads/ — свежие первыми."""
+def user_upload_dir(api_key: str) -> str:
+    """Изолированная папка загрузок; ключ не попадает в путь в открытом виде."""
+    user_id = hashlib.sha256(str(api_key).encode("utf-8")).hexdigest()
+    return os.path.join(UPLOADS_DIR, user_id)
+
+
+def uploaded_files(api_key: str):
+    """Имена файлов только текущего пользователя — свежие первыми."""
+    if not api_key:
+        return []
+    folder = user_upload_dir(api_key)
     try:
-        names = [n for n in os.listdir(UPLOADS_DIR)
-                 if os.path.isfile(os.path.join(UPLOADS_DIR, n))]
+        names = [n for n in os.listdir(folder)
+                 if os.path.isfile(os.path.join(folder, n))]
     except OSError:
         return []
-    names.sort(key=lambda n: os.path.getmtime(os.path.join(UPLOADS_DIR, n)),
+    names.sort(key=lambda n: os.path.getmtime(os.path.join(folder, n)),
                reverse=True)
     return names
 
 
-def uploaded_files_hint(limit: int = 5) -> str:
+def uploaded_files_hint(api_key: str, limit: int = 5) -> str:
     """Подсказка в системный промпт: какие файлы пользователь уже загрузил.
 
     Без неё модель отвечает «пришли текст задачи», хотя текст уже лежит в
     uploads/ — та же история, что была с сохранёнными сайтами, пока их список
     не начали подмешивать в промпт.
     """
-    names = uploaded_files()
+    names = uploaded_files(api_key)
     if not names:
         return ""
     shown = names[:limit]
@@ -3576,16 +3649,17 @@ def uploaded_files_hint(limit: int = 5) -> str:
             "инструментом read_uploaded_file и отвечай по содержимому.")
 
 
-def _tool_read_upload(filename: str) -> str:
-    """Читает загруженный файл как текст или объясняет, почему не вышло."""
+def _tool_read_upload(filename: str, api_key: str) -> str:
+    """Читает файл только из личной папки пользователя."""
     name = os.path.basename(str(filename or "").strip())
+    if not api_key:
+        return "Не удалось определить пользователя"
     if not name:
         return "Не указано имя файла"
-    # basename уже отрезал «../», но проверяем и результат: символические
-    # ссылки и хитрые имена обходят наивную чистку. Читаем только то, что
-    # реально лежит в uploads/.
-    real_dir = os.path.realpath(UPLOADS_DIR)
-    real_path = os.path.realpath(os.path.join(UPLOADS_DIR, name))
+    # basename отрезает «../», а realpath дополнительно блокирует symlink escape.
+    user_dir = user_upload_dir(api_key)
+    real_dir = os.path.realpath(user_dir)
+    real_path = os.path.realpath(os.path.join(user_dir, name))
     if os.path.dirname(real_path) != real_dir or not os.path.isfile(real_path):
         return f"Файл «{name}» не найден. Загрузи его кнопкой 📎."
     ext = os.path.splitext(name)[1].lower()
@@ -3616,24 +3690,35 @@ def _tool_download(url: str) -> str:
         return "Нужна ссылка http:// или https://"
     name = os.path.basename(urllib.parse.unquote(parsed.path)) or "file"
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)[:120]
+    res = None
     try:
         os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-        res = requests.get(url, timeout=60, headers=browser_headers(), stream=True)
-        res.raise_for_status()
+        res = _safe_get(url, timeout=60, stream=True, max_bytes=MAX_DOWNLOAD_BYTES)
+        try:
+            res.raise_for_status()
+        except Exception:
+            res.close()
+            raise
         # Отсекаем гигантов ещё по заголовку: тело даже не начинаем качать.
         declared = res.headers.get("Content-Length")
         if declared and declared.isdigit() and int(declared) > MAX_DOWNLOAD_BYTES:
+            res.close()
             return (f"Файл больше {MAX_DOWNLOAD_MB} МБ "
                     f"({int(declared) // (1024 * 1024)} МБ) — не скачиваю.")
         path = os.path.join(DOWNLOADS_DIR, name)
         base, ext = os.path.splitext(path)
-        n = 1
-        while os.path.exists(path):
-            path = f"{base}_{n}{ext}"
-            n += 1
+        n = 0
         written = 0
+        while True:
+            candidate = path if n == 0 else f"{base}_{n}{ext}"
+            try:
+                f = open(candidate, "xb")
+                path = candidate
+                break
+            except FileExistsError:
+                n += 1
         try:
-            with open(path, "wb") as f:
+            with f:
                 for chunk in res.iter_content(chunk_size=65536):
                     if not chunk:
                         continue
@@ -3652,12 +3737,17 @@ def _tool_download(url: str) -> str:
             except OSError:
                 pass
             raise
+        finally:
+            res.close()
         size = os.path.getsize(path)
-        logger.info(f"Скачан файл: {path} ({size} байт)")
+        logger.info(f"Скачан файл: {os.path.basename(path)} ({size} байт)")
         return f"Скачал «{os.path.basename(path)}» ({size} байт)"
     except Exception as e:
         logger.error(f"download {url}: {e}")
         return f"Не удалось скачать: {e}"
+    finally:
+        if res is not None:
+            res.close()
 
 
 def run_ai_tool(name: str, args: dict, api_key: str = "") -> str:
@@ -3729,7 +3819,7 @@ def run_ai_tool(name: str, args: dict, api_key: str = "") -> str:
                                 str(args.get("when") or ""))
 
         if name == "read_uploaded_file":
-            return _tool_read_upload(str(args.get("filename") or ""))
+            return _tool_read_upload(str(args.get("filename") or ""), api_key)
     except Exception as e:
         logger.error(f"Инструмент {name}: {e}")
         return f"Ошибка инструмента {name}: {e}"
@@ -3809,7 +3899,7 @@ def ask_ai(user_name: str, text: str, api_key: str = "", as_task: bool = False,
             system_prompt = f"{system_prompt}\n\n{hint}\nЕсли пользователь просит войти на такой сайт, ответь, что можешь это сделать, и попроси написать «войди в <название>»."
         # То же и для файлов с устройства: пока список не подмешан, модель на
         # вопрос о загруженной лабораторной отвечает «пришли текст».
-        files_hint = uploaded_files_hint()
+        files_hint = uploaded_files_hint(api_key)
         if files_hint:
             system_prompt = f"{system_prompt}\n\n{files_hint}"
 
@@ -4121,25 +4211,36 @@ def execute_command(api_key: str, command: dict):
         name = os.path.basename(urllib.parse.unquote(parsed.path)) or "file"
         name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)[:120]
         folder = DOWNLOADS_DIR
+        res = None
         try:
             os.makedirs(folder, exist_ok=True)
-            res = requests.get(url, timeout=60, headers=browser_headers(), stream=True)
-            res.raise_for_status()
+            res = _safe_get(url, timeout=60, stream=True, max_bytes=MAX_DOWNLOAD_BYTES)
+            try:
+                res.raise_for_status()
+            except Exception:
+                res.close()
+                raise
             # Тот же потолок, что и в инструменте download_file: одна ссылка
             # не должна забивать диск бесплатного Render на сотни мегабайт.
             declared = res.headers.get("Content-Length")
             if declared and declared.isdigit() and int(declared) > MAX_DOWNLOAD_BYTES:
+                res.close()
                 return (f"❌ Файл больше {MAX_DOWNLOAD_MB} МБ "
                         f"({int(declared) // (1024 * 1024)} МБ) — не скачиваю.")
             path = os.path.join(folder, name)
             base, ext = os.path.splitext(path)
-            n = 1
-            while os.path.exists(path):
-                path = f"{base}_{n}{ext}"
-                n += 1
+            n = 0
             written = 0
+            while True:
+                candidate = path if n == 0 else f"{base}_{n}{ext}"
+                try:
+                    f = open(candidate, "xb")
+                    path = candidate
+                    break
+                except FileExistsError:
+                    n += 1
             try:
-                with open(path, "wb") as f:
+                with f:
                     for chunk in res.iter_content(chunk_size=65536):
                         if not chunk:
                             continue
@@ -4155,12 +4256,17 @@ def execute_command(api_key: str, command: dict):
                 except OSError:
                     pass
                 raise
+            finally:
+                res.close()
             size = os.path.getsize(path)
             logger.info(f"Скачан файл: {path} ({size} байт)")
             return f"✅ Скачал «{os.path.basename(path)}» ({size} байт)"
         except Exception as e:
             logger.error(f"download_file {url}: {e}")
             return f"❌ Не удалось скачать: {e}"
+        finally:
+            if res is not None:
+                res.close()
 
     if action == "login_site":
         text, site, err = login_to_site(api_key, query=params.get("query", ""),

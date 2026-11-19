@@ -60,7 +60,7 @@ from tools import (
 # Клиент Supabase пересоздаётся в connect_services() уже после импорта, поэтому
 # держим модульную ссылку: _sync_from_tools() обновит её на старте.
 supabase = tools.supabase
-from tools import BASE_DIR, WEB_DIR, DOWNLOADS_DIR, SETTINGS, UPLOADS_DIR
+from tools import BASE_DIR, WEB_DIR, DOWNLOADS_DIR, SETTINGS, UPLOADS_DIR, user_upload_dir
 # Проверка адреса живёт в tools.py: тот же страж используется и внутри самих
 # инструментов (http_get_text, plain_page_text), поэтому одной копии достаточно.
 from tools import _safe_public_url
@@ -471,16 +471,12 @@ def fetch_url(data: FetchUrlRequest):
     if not ok:
         return {"success": False, "error": reason}
     try:
-        response = requests.get(
-            data.url, timeout=10, headers=browser_headers(), allow_redirects=True,
-        )
-        # Перенаправление могло увести на внутренний адрес — проверяем, куда
-        # нас в итоге привели, и не читаем такую страницу.
-        ok, reason = _safe_public_url(response.url)
-        if not ok:
-            return {"success": False, "error": reason}
-        soup = BeautifulSoup(response.text, "html.parser")
-        return {"success": True, "content": soup.get_text()[:2000]}
+        response = tools._safe_get(data.url, timeout=10, max_bytes=tools.MAX_PAGE_BYTES)
+        try:
+            soup = BeautifulSoup(response.text, "html.parser")
+            return {"success": True, "content": soup.get_text()[:2000]}
+        finally:
+            response.close()
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -629,33 +625,57 @@ def download_file(data: DownloadRequest):
     name = os.path.basename(urllib.parse.unquote(parsed.path)) or "file"
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)[:120]  # безопасное имя для Windows
     folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
+    res = None
     try:
         os.makedirs(folder, exist_ok=True)
-        res = requests.get(data.url, timeout=60, headers=browser_headers(), stream=True)
-        res.raise_for_status()
-        # Перенаправление могло увести на внутренний адрес — проверяем, куда
-        # нас в итоге привели, и не сохраняем такую страницу.
-        ok, reason = _safe_public_url(res.url)
-        if not ok:
-            return {"success": False, "error": reason}
+        res = tools._safe_get(data.url, timeout=60, stream=True,
+                              max_bytes=tools.MAX_DOWNLOAD_BYTES)
+        declared = res.headers.get("Content-Length")
+        if declared and declared.isdigit() and int(declared) > tools.MAX_DOWNLOAD_BYTES:
+            res.close()
+            return {"success": False, "error": f"Файл больше {tools.MAX_DOWNLOAD_MB} МБ"}
         path = os.path.join(folder, name)
-        # Не перезаписываем одноимённые файлы — добавляем номер.
+        # Не перезаписываем одноимённые файлы. Открытие x исключает гонку
+        # между параллельными запросами на один и тот же путь.
         base, ext = os.path.splitext(path)
         n = 1
-        while os.path.exists(path):
-            path = f"{base}_{n}{ext}"
-            n += 1
-        with open(path, "wb") as f:
-            for chunk in res.iter_content(chunk_size=65536):
-                if chunk:
+        written = 0
+        while True:
+            candidate = path if n == 1 else f"{base}_{n - 1}{ext}"
+            try:
+                f = open(candidate, "xb")
+                path = candidate
+                break
+            except FileExistsError:
+                n += 1
+        try:
+            with f:
+                for chunk in res.iter_content(chunk_size=65536):
+                    if not chunk:
+                        continue
+                    written += len(chunk)
+                    if written > tools.MAX_DOWNLOAD_BYTES:
+                        raise ValueError(f"Файл больше {tools.MAX_DOWNLOAD_MB} МБ")
                     f.write(chunk)
+        except Exception:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass
+            raise
+        finally:
+            res.close()
         size = os.path.getsize(path)
-        logger.info(f"Скачан файл: {path} ({size} байт)")
+        logger.info(f"Скачан файл: {os.path.basename(path)} ({size} байт)")
         return {"success": True, "message": f"✅ Скачал «{os.path.basename(path)}» ({size} байт)",
-                "path": path, "size": size}
+                "path": os.path.basename(path), "size": size}
     except Exception as e:
         logger.error(f"download_file {data.url}: {e}")
         return {"success": False, "error": f"Не удалось скачать: {e}"}
+    finally:
+        if res is not None:
+            res.close()
 
 
 @app.post("/upload_file")
@@ -681,7 +701,10 @@ def upload_file(data: UploadRequest):
         name = "file"
 
     try:
-        raw = base64.b64decode(data.content_b64, validate=False)
+        # Reject non-alphabet characters rather than silently discarding them;
+        # permissive decoding can turn corrupted or intentionally padded input
+        # into a different file than the client sent.
+        raw = base64.b64decode(data.content_b64, validate=True)
     except (binascii.Error, ValueError):
         return {"success": False, "error": "Файл повреждён при передаче"}
     # Pydantic уже ограничил длину строки, но проверяем и сами байты: base64
@@ -694,21 +717,29 @@ def upload_file(data: UploadRequest):
         return {"success": False, "error": "Пустой файл"}
 
     try:
-        os.makedirs(UPLOADS_DIR, exist_ok=True)
-        path = os.path.join(UPLOADS_DIR, name)
-        # Одноимённые не перезаписываем — иначе вторая загрузка молча съест первую.
+        # Не переиспользуем общий каталог: даже одинаковые имена файлов у
+        # разных пользователей должны быть недоступны друг другу. Старые файлы
+        # из корня uploads/ сохраняются, но больше не попадают в пользовательский список.
+        user_dir = user_upload_dir(data.api_key)
+        os.makedirs(user_dir, exist_ok=True)
+        path = os.path.join(user_dir, name)
+        # Одноимённые не перезаписываем; режим x атомарно защищает от гонки.
         base, ext = os.path.splitext(path)
-        n = 1
-        while os.path.exists(path):
-            path = f"{base}_{n}{ext}"
-            n += 1
-        with open(path, "wb") as f:
-            f.write(raw)
+        n = 0
+        while True:
+            candidate = path if n == 0 else f"{base}_{n}{ext}"
+            try:
+                with open(candidate, "xb") as f:
+                    f.write(raw)
+                path = candidate
+                break
+            except FileExistsError:
+                n += 1
         size = os.path.getsize(path)
-        logger.info(f"Загружен файл: {path} ({size} байт)")
+        logger.info(f"Загружен файл: {os.path.basename(path)} ({size} байт)")
         return {"success": True,
                 "message": f"✅ Загрузил «{os.path.basename(path)}» ({size} байт)",
-                "path": path, "size": size}
+                "path": os.path.basename(path), "size": size}
     except Exception as e:
         logger.error(f"upload_file {name}: {e}")
         return {"success": False, "error": f"Не удалось сохранить файл: {e}"}
